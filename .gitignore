@@ -1,0 +1,5 @@
+node_modules
+dist
+dist-bun
+.env
+.DS_Store
