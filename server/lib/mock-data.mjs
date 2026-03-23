@@ -9,7 +9,10 @@ function cleanHandle(value, fallback) {
 }
 
 export function buildMockDossier(input = {}) {
-  const alias = cleanHandle(input.xHandle || input.linkedinHandle, 'main-character-dev');
+  const alias = cleanHandle(
+    input.profileInput || input.xHandle || input.linkedinHandle || input.instagramHandle,
+    'main-character-dev',
+  );
   const probableName = input.displayName || alias;
 
   return {
@@ -86,7 +89,10 @@ export function buildMockExperience(input = {}) {
         platform: 'demo',
         url: 'https://example.com/mock-profile',
         display: cleanHandle(
-          input.xHandle || input.linkedinHandle || input.instagramHandle,
+          input.profileInput ||
+            input.xHandle ||
+            input.linkedinHandle ||
+            input.instagramHandle,
           'synthetic-receipts',
         ),
       },

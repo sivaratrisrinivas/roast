@@ -1,5 +1,5 @@
 {
-  "name": "roast-deathvoice",
+  "name": "roast",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -13,7 +13,6 @@
     "start": "./scripts/bun.sh server/index.mjs"
   },
   "dependencies": {
-    "@elevenlabs/react": "^0.6.1",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "react": "^19.1.1",

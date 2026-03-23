@@ -1,81 +1,35 @@
-const fieldConfig = [
-  {
-    name: 'displayName',
-    label: 'Name on the headstone',
-    placeholder: 'Srinivas, The Guy Who Posted Through It',
-  },
-  {
-    name: 'xHandle',
-    label: 'X handle or URL',
-    placeholder: '@example or https://x.com/example',
-  },
-  {
-    name: 'linkedinHandle',
-    label: 'LinkedIn handle or URL',
-    placeholder: 'janedoe or linkedin.com/in/janedoe',
-  },
-  {
-    name: 'instagramHandle',
-    label: 'Instagram handle or URL',
-    placeholder: '@example or instagram.com/example',
-  },
-];
-
-export function FuneralForm({ form, loading, onSubmit, onChange }) {
+export function FuneralForm({ value, loading, error, onSubmit, onChange }) {
   return (
-    <form className="funeral-form" onSubmit={onSubmit}>
-      <div className="section-copy">
-        <p className="section-label">Summon The Mourners</p>
-        <h2>Point the app at your public life.</h2>
-        <p>
-          Give it enough surface area for a funeral: X for inner monologue,
-          LinkedIn for professional fiction, Instagram for curation crimes.
-        </p>
-      </div>
+    <section className="screen screen-card capture-screen">
+      <p className="brand-mark">ROAST</p>
+      <h2 className="screen-title">Paste one public profile.</h2>
+      <p className="screen-copy">
+        Use a public profile URL or type an X handle.
+      </p>
 
-      <div className="field-grid">
-        {fieldConfig.map((field) => (
-          <label className="field" key={field.name}>
-            <span>{field.label}</span>
-            <input
-              type="text"
-              value={form[field.name]}
-              placeholder={field.placeholder}
-              onChange={(event) => onChange(field.name, event.target.value)}
-            />
-          </label>
-        ))}
-      </div>
+      <form className="single-input-form" onSubmit={onSubmit}>
+        <input
+          className="profile-input"
+          type="text"
+          value={value}
+          placeholder="@handle or linkedin.com/in/name"
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button
+          className="primary-action"
+          type="submit"
+          disabled={loading || !value.trim()}
+        >
+          Generate ROAST
+        </button>
+      </form>
 
-      <div className="toggle-grid">
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={form.demoMode}
-            onChange={(event) => onChange('demoMode', event.target.checked)}
-          />
-          <div>
-            <strong>Demo mode</strong>
-            <span>Use synthetic receipts so the UI works before keys exist.</span>
-          </div>
-        </label>
+      <p className="micro-note">
+        Examples: `@name`, `https://x.com/name`, `linkedin.com/in/name`,
+        `instagram.com/name`
+      </p>
 
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={form.skipAudio}
-            onChange={(event) => onChange('skipAudio', event.target.checked)}
-          />
-          <div>
-            <strong>Skip audio generation</strong>
-            <span>Useful when wiring the Firecrawl side before ElevenLabs.</span>
-          </div>
-        </label>
-      </div>
-
-      <button className="run-button" type="submit" disabled={loading}>
-        {loading ? 'Preparing the service...' : 'Run My Funeral'}
-      </button>
-    </form>
+      {error ? <p className="error-copy">{error}</p> : null}
+    </section>
   );
 }

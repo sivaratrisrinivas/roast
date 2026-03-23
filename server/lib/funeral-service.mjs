@@ -24,6 +24,65 @@ function normalizeHandle(value = '') {
     .replace(/\/+$/, '');
 }
 
+function inferPlatformFromInput(rawValue = '') {
+  const trimmed = rawValue.trim().toLowerCase();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (
+    trimmed.includes('linkedin.com') ||
+    trimmed.startsWith('linkedin:')
+  ) {
+    return 'linkedin';
+  }
+
+  if (
+    trimmed.includes('instagram.com') ||
+    trimmed.startsWith('instagram:')
+  ) {
+    return 'instagram';
+  }
+
+  return 'x';
+}
+
+function collectRequestedProfiles(input = {}) {
+  const rawProfiles = [];
+
+  if (input.profileInput) {
+    const inferredPlatform = inferPlatformFromInput(input.profileInput);
+
+    if (inferredPlatform) {
+      rawProfiles.push([inferredPlatform, input.profileInput]);
+    }
+  }
+
+  rawProfiles.push(
+    ['x', input.xHandle],
+    ['linkedin', input.linkedinHandle],
+    ['instagram', input.instagramHandle],
+  );
+
+  const seen = new Set();
+
+  return rawProfiles.filter(([platform, value]) => {
+    if (!value) {
+      return false;
+    }
+
+    const key = `${platform}:${value}`;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
 function trimText(value, maxLength = 280) {
   if (!value) {
     return '';
@@ -230,7 +289,10 @@ function buildFallbackDossier(profiles, input = {}) {
       probableName:
         input.displayName ||
         normalizeHandle(
-          input.xHandle || input.linkedinHandle || input.instagramHandle,
+          input.profileInput ||
+            input.xHandle ||
+            input.linkedinHandle ||
+            input.instagramHandle,
         ) ||
         'Unknown subject',
       profession: 'person discoverable through public profile breadcrumbs',
@@ -467,11 +529,7 @@ export async function generateFuneralExperience(input = {}) {
     return demo;
   }
 
-  const requestedProfiles = [
-    ['x', input.xHandle],
-    ['linkedin', input.linkedinHandle],
-    ['instagram', input.instagramHandle],
-  ].filter(([, value]) => value);
+  const requestedProfiles = collectRequestedProfiles(input);
 
   const profiles = (
     await Promise.all(

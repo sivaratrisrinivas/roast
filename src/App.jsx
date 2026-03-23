@@ -1,23 +1,16 @@
 import { startTransition, useEffect, useState } from 'react';
 import { FuneralForm } from './components/FuneralForm.jsx';
 import { FuneralStage } from './components/FuneralStage.jsx';
-import { AgentWakePanel } from './components/AgentWakePanel.jsx';
 
 const initialForm = {
-  displayName: '',
-  xHandle: '',
-  linkedinHandle: '',
-  instagramHandle: '',
-  demoMode: false,
-  skipAudio: false,
+  profileInput: '',
 };
 
 const loadingLines = [
-  'Searching the open web for your public life.',
-  'Distilling the humblebrags into digital remains.',
-  'Casting a grieving mother, a bitter ex, a rigid boss, and one loyal menace.',
-  'Drafting a eulogy with enough receipts to make it sting.',
-  'Lighting the candles and waiting for the first voice crack.',
+  'Pulling the public version of you off the internet.',
+  'Turning that version into a funeral script.',
+  'Handing each mourner a voice.',
+  'Setting the room and dimming the lights.',
 ];
 
 async function postFuneralRequest(payload) {
@@ -38,12 +31,39 @@ async function postFuneralRequest(payload) {
   return data;
 }
 
+function IntroScreen({ onBegin }) {
+  return (
+    <section className="screen screen-card intro-screen">
+      <p className="brand-mark">ROAST</p>
+      <h1 className="welcome-title">One public profile. One funeral.</h1>
+      <p className="screen-copy">
+        Give ROAST a public profile and it will turn that internet version of
+        you into a staged funeral.
+      </p>
+      <button className="primary-action" type="button" onClick={onBegin}>
+        Start
+      </button>
+    </section>
+  );
+}
+
+function LoadingScreen({ line }) {
+  return (
+    <section className="screen screen-card loading-screen">
+      <div className="status-orb" aria-hidden="true" />
+      <p className="brand-mark">ROAST</p>
+      <h2 className="screen-title">{line}</h2>
+    </section>
+  );
+}
+
 export default function App() {
   const [form, setForm] = useState(initialForm);
   const [experience, setExperience] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [screen, setScreen] = useState('intro');
   const [error, setError] = useState('');
   const [loadingIndex, setLoadingIndex] = useState(0);
+  const loading = screen === 'loading';
 
   useEffect(() => {
     if (!loading) {
@@ -59,91 +79,53 @@ export default function App() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setLoading(true);
+    setScreen('loading');
     setError('');
     setExperience(null);
     setLoadingIndex(0);
 
     try {
-      const data = await postFuneralRequest(form);
+      const data = await postFuneralRequest({
+        profileInput: form.profileInput.trim(),
+      });
       startTransition(() => {
         setExperience(data);
+        setScreen('result');
       });
     } catch (submitError) {
       setError(submitError.message);
-    } finally {
-      setLoading(false);
+      setScreen('capture');
     }
   }
 
-  function updateField(name, value) {
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
+  function updateField(value) {
+    setForm({ profileInput: value });
   }
 
   return (
     <div className="app-shell">
       <div className="backdrop-glow" aria-hidden="true" />
-      <header className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Roast / DeathVoice</p>
-          <h1>Run your own funeral before the internet does it for you.</h1>
-          <p className="hero-text">
-            Firecrawl pulls the public receipts. ElevenLabs gives the mourners a
-            voice. You get a wake where your mom, ex, boss, and best friend all
-            deliver the version of you that your timeline accidentally wrote.
-          </p>
-          <div className="hero-notes">
-            <span>4 mourners</span>
-            <span>real public quotes</span>
-            <span>live-agent ready</span>
-          </div>
-        </div>
+      {screen === 'intro' ? <IntroScreen onBegin={() => setScreen('capture')} /> : null}
 
-        <div className="hero-statement panel">
-          <p className="statement-label">The Hook</p>
-          <p className="statement-body">
-            A theatrical funeral generated from your public digital footprint,
-            performed by AI voices with just enough tenderness to make the roast
-            worse.
-          </p>
-          <p className="statement-footer">
-            Only use your own public profiles, or profiles you have explicit
-            permission to roast.
-          </p>
-        </div>
-      </header>
-
-      <main className="main-grid">
-        <section className="panel control-panel">
+      {screen === 'capture' ? (
+        <main className="screen-wrap">
           <FuneralForm
-            form={form}
-            loading={loading}
+            value={form.profileInput}
             onSubmit={handleSubmit}
             onChange={updateField}
-          />
-          {error ? <p className="error-copy">{error}</p> : null}
-          <div className="stacked-note">
-            <p className="stacked-note-title">Demo flow</p>
-            <p>
-              Leave keys empty and switch on demo mode to dogfood the whole UI
-              with synthetic receipts. Plug in Firecrawl and ElevenLabs later to
-              turn it into the real thing.
-            </p>
-          </div>
-        </section>
-
-        <section className="experience-column">
-          <FuneralStage
-            experience={experience}
+            error={error}
             loading={loading}
-            loadingLine={loadingLines[loadingIndex]}
           />
-          <AgentWakePanel experience={experience} />
-        </section>
-      </main>
+        </main>
+      ) : null}
+
+      {screen === 'loading' ? <LoadingScreen line={loadingLines[loadingIndex]} /> : null}
+
+      {screen === 'result' && experience ? (
+        <main className="screen-wrap">
+          <FuneralStage experience={experience} />
+        </main>
+      ) : null}
     </div>
   );
 }
