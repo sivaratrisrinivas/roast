@@ -4,7 +4,7 @@ export function FuneralForm({ value, loading, error, onSubmit, onChange }) {
       <p className="brand-mark">ROAST</p>
       <h2 className="screen-title">Paste one public profile.</h2>
       <p className="screen-copy">
-        Use a public profile URL or type an X handle.
+        Use a public profile URL, GitHub, website, or type an X handle.
       </p>
 
       <form className="single-input-form" onSubmit={onSubmit}>
@@ -25,8 +25,8 @@ export function FuneralForm({ value, loading, error, onSubmit, onChange }) {
       </form>
 
       <p className="micro-note">
-        Examples: `@name`, `https://x.com/name`, `linkedin.com/in/name`,
-        `instagram.com/name`
+        Examples: `@name`, `https://x.com/name`, `github.com/name`,
+        `linkedin.com/in/name`, `yourname.com`
       </p>
 
       {error ? <p className="error-copy">{error}</p> : null}

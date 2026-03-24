@@ -1,8 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
+  createLogger,
+  getAvailableVoices,
   generateFuneralExperience,
   getLiveAgentConfig,
   getSignedUrlForAgent,
@@ -27,13 +30,48 @@ app.get('/api/health', (_request, response) => {
   });
 });
 
-app.post('/api/funeral', async (request, response) => {
+app.get('/api/debug/voices', async (_request, response) => {
   try {
-    const experience = await generateFuneralExperience(request.body || {});
-    response.json(experience);
+    const voices = await getAvailableVoices();
+    response.json({
+      ok: true,
+      count: voices.length,
+      voices: voices.map((voice) => ({
+        name: voice.name,
+        voiceId: voice.voice_id,
+        category: voice.category,
+      })),
+    });
   } catch (error) {
     response.status(500).json({
+      error: error.message || 'Unable to list ElevenLabs voices.',
+    });
+  }
+});
+
+app.post('/api/funeral', async (request, response) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const logger = createLogger(requestId);
+
+  try {
+    logger('request.received', {
+      route: '/api/funeral',
+    });
+    const experience = await generateFuneralExperience(request.body || {}, {
+      requestId,
+      logger,
+    });
+    response.json({
+      ...experience,
+      requestId,
+    });
+  } catch (error) {
+    logger('request.failed', {
+      error: error.message || 'Unknown error',
+    });
+    response.status(500).json({
       error: error.message || 'Unable to prepare the funeral.',
+      requestId,
     });
   }
 });

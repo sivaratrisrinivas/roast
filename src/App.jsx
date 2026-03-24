@@ -25,7 +25,10 @@ async function postFuneralRequest(payload) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || 'Funeral service failed to start.');
+    const message = data.error || 'Funeral service failed to start.';
+    throw new Error(
+      data.requestId ? `${message} [request ${data.requestId}]` : message,
+    );
   }
 
   return data;

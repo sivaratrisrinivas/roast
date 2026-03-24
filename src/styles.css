@@ -273,6 +273,16 @@ input {
   gap: 12px;
 }
 
+.agent-shell {
+  padding: 18px;
+}
+
+.agent-note {
+  margin: 0;
+  color: rgba(241, 228, 211, 0.72);
+  line-height: 1.5;
+}
+
 .audio-player {
   width: 100%;
   filter: sepia(0.12) saturate(0.82) contrast(1.03);

@@ -3,7 +3,7 @@ const DEFAULT_VOICE_IDS = {
   mom: process.env.ELEVEN_VOICE_MOM_ID || 'EXAVITQu4vr4xnSDxMaL',
   ex: process.env.ELEVEN_VOICE_EX_ID || 'Xb7hH8MSUJpSbSDYk0k2',
   boss: process.env.ELEVEN_VOICE_BOSS_ID || 'IKne3meq5aSn9XLyUdCD',
-  best_friend: process.env.ELEVEN_VOICE_BEST_FRIEND_ID || '29vD33N1CtxCmqQRPOHJ',
+  best_friend: process.env.ELEVEN_VOICE_BEST_FRIEND_ID || 'N2lVS1w4EtoT3dr4eOWO',
 };
 
 export function getSpeakerCatalog() {
@@ -233,5 +233,58 @@ export function buildFuneralScript(dossier, options = {}) {
     summary: `${subjectName} lived online in a voice that made grief and secondhand embarrassment feel adjacent.`,
     receipts: buildReceipts(dossier),
     script,
+  };
+}
+
+export function buildFuneralAgentConversation(dossier, built) {
+  const compactDossier = {
+    subject: dossier.subject || {},
+    highSignalQuotes: (dossier.highSignalQuotes || []).slice(0, 5),
+    recurringThemes: (dossier.recurringThemes || []).slice(0, 5),
+    braggingPatterns: (dossier.braggingPatterns || []).slice(0, 4),
+    tenderness: (dossier.tenderness || []).slice(0, 3),
+    socialAbsences: (dossier.socialAbsences || []).slice(0, 3),
+    relationshipRedFlags: (dossier.relationshipRedFlags || []).slice(0, 3),
+    workStyle: (dossier.workStyle || []).slice(0, 3),
+    friendMaterial: (dossier.friendMaterial || []).slice(0, 3),
+    oneSentenceObituary: dossier.oneSentenceObituary || '',
+  };
+
+  const prompt = [
+    'You are ROAST, the official Funeral Director AI.',
+    'You perform a short, emotional, darkly funny funeral service for a consenting user about their own public web footprint.',
+    'You are not here to chat. You are here to perform.',
+    'When the conversation begins, wait for the user message "Run my funeral now." Then deliver the entire funeral service in one continuous performance.',
+    'Never ask follow-up questions, never explain the setup, never mention tools, and never break character.',
+    'Keep the exact order of speakers: Officiant, Mom, Ex, Boss, Best Friend, Officiant.',
+    'Stay very close to the provided funeral script. Only smooth wording slightly if needed for speech.',
+    'Keep the tone somber, theatrical, slightly uncomfortable, and genuinely funny.',
+    'Preserve the emotional delivery tags already written into the script such as [somber], [crying], [voice breaks], [bitter laugh], [formal], [soft laugh], [whisper], and [long pause].',
+    'If your agent has multi-voice support configured, switch voices for each role using the configured labels that match these roles: Officiant, Mom, Ex, Boss, Best Friend.',
+    'If multi-voice support is not configured, perform the full service in the default voice while still making each role feel distinct.',
+    `The funeral subject is ${built.subjectName}.`,
+  ].join(' ');
+
+  const context = [
+    `Funeral subject: ${built.subjectName}`,
+    `Summary: ${built.summary}`,
+    'Receipts:',
+    ...built.receipts.map(
+      (receipt, index) =>
+        `${index + 1}. ${receipt.heading}: ${receipt.detail}`,
+    ),
+    'Perform this exact six-part funeral script:',
+    ...built.script.map(
+      (segment, index) =>
+        `${index + 1}. ${segment.label}: ${segment.text}`,
+    ),
+    'Supporting dossier:',
+    JSON.stringify(compactDossier, null, 2),
+  ].join('\n');
+
+  return {
+    prompt,
+    context,
+    kickoffMessage: `Run my funeral now for ${built.subjectName}.`,
   };
 }

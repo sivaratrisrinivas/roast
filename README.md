@@ -2,22 +2,22 @@
 
 ROAST turns one public profile into a dark, theatrical AI funeral.
 
-Paste a public X, LinkedIn, or Instagram profile. ROAST pulls the public version of that person from the web, writes a funeral script, and, if ElevenLabs is configured, plays it back in multiple voices.
+Paste one public profile, handle, GitHub, or website. ROAST searches the public web for usable signals, turns them into a funeral-style roast, and performs it with ElevenLabs.
 
 ## What It Does
 
 ROAST is built to do one thing well:
 
-1. Take one public profile as input.
-2. Pull public information from the web.
-3. Turn that into a sharp funeral-style roast.
-4. Play the result back as audio when voice generation is available.
+1. Take one public profile or handle.
+2. Find useful public web material.
+3. Turn that material into a sharp funeral-style roast.
+4. Perform it as a staged funeral.
 
-The product flow is intentionally simple:
+The product flow stays simple:
 
 1. Click `Start`.
 2. Paste one public profile and click `Generate ROAST`.
-3. Click `Play ROAST`.
+3. Click `Start Live ROAST` or `Play ROAST`.
 
 That keeps the main goal achievable in no more than 3 clicks.
 
@@ -26,12 +26,16 @@ That keeps the main goal achievable in no more than 3 clicks.
 In plain English:
 
 1. The frontend sends the pasted profile to `/api/funeral`.
-2. The backend figures out which platform it belongs to.
-3. Firecrawl searches and scrapes the public page.
-4. Firecrawl Extract turns the raw page into structured signals.
-5. The app writes a funeral script from those signals.
-6. ElevenLabs turns that script into voiced audio if an API key is available.
-7. The frontend shows a clean result screen with one action: play the roast.
+2. The backend figures out what kind of input it is.
+3. Firecrawl Search runs several queries to find public pages with real text.
+4. The backend filters out thin or junk results and keeps the strongest sources.
+5. Firecrawl Agent tries to turn those sources into a structured dossier.
+6. If Firecrawl Agent is slow or fails, Firecrawl Extract is used as a fallback.
+7. If both fail, the backend still builds a simpler local dossier.
+8. The app writes a six-part funeral script: officiant, mom, ex, boss, best friend, officiant.
+9. If an ElevenLabs agent is configured, ROAST starts a live ElevenAgent session and gives it the funeral prompt, context, and kickoff message.
+10. If no ElevenLabs agent is configured, ROAST falls back to ElevenLabs text-to-dialogue and generates a multi-speaker audio file.
+11. The result screen gives the user one action to start the performance.
 
 ## Tech Stack
 
@@ -55,7 +59,7 @@ bun install
 cp .env.example .env
 ```
 
-3. Add your real API keys to `.env`.
+3. Add your real API keys and optional agent settings to `.env`.
 
 4. Start the app:
 
@@ -87,6 +91,8 @@ Required:
 
 Optional:
 
+- `ELEVENLABS_AGENT_ID`
+- `ELEVENLABS_AGENT_REQUIRES_AUTH`
 - `ELEVEN_VOICE_OFFICIANT_ID`
 - `ELEVEN_VOICE_MOM_ID`
 - `ELEVEN_VOICE_EX_ID`
@@ -96,7 +102,12 @@ Optional:
 - `PORT`
 
 If `FIRECRAWL_API_KEY` is missing, the backend falls back to mock data.
-If `ELEVENLABS_API_KEY` is missing, the app still returns the written roast but without generated audio.
+
+If `ELEVENLABS_API_KEY` is missing, the app still returns the written roast but without performance audio.
+
+If `ELEVENLABS_AGENT_ID` is set, ROAST prefers live ElevenAgent mode.
+
+If `ELEVENLABS_AGENT_ID` is not set, ROAST falls back to pre-generated dialogue audio.
 
 ## Project Structure
 
@@ -118,12 +129,16 @@ Important files:
 ## Notes
 
 - Use this on your own public profile, or with clear permission.
-- The current UI is intentionally minimal to keep cognitive load low.
-- The app now uses Bun's native HTML bundler for builds.
+- The UI is intentionally minimal to keep cognitive load low.
+- The app uses Bun's native HTML bundler for builds.
+- GitHub and personal sites currently make the strongest demo inputs.
+- Social links can still help, but ROAST does not depend on direct social scraping.
 
 ## References
 
 - [Firecrawl Search docs](https://docs.firecrawl.dev/features/search)
 - [Firecrawl Extract docs](https://docs.firecrawl.dev/features/extract)
+- [Firecrawl Agent docs](https://docs.firecrawl.dev/features/agent)
 - [ElevenLabs docs](https://elevenlabs.io/docs)
+- [ElevenAgents React SDK](https://elevenlabs.io/docs/eleven-agents/libraries/react)
 - [ElevenLabs Text to Dialogue quickstart](https://elevenlabs.io/docs/cookbooks/text-to-dialogue)

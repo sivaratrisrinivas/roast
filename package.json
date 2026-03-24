@@ -13,6 +13,7 @@
     "start": "./scripts/bun.sh server/index.mjs"
   },
   "dependencies": {
+    "@elevenlabs/react": "^0.14.3",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "react": "^19.1.1",
