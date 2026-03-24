@@ -1,24 +1,21 @@
 import { startTransition, useEffect, useState } from 'react';
 import { FuneralForm } from './components/FuneralForm.jsx';
 import { FuneralStage } from './components/FuneralStage.jsx';
+import orbSrc from './assets/orb.png';
 
-const initialForm = {
-  profileInput: '',
-};
+const initialForm = { profileInput: '' };
 
-const loadingLines = [
-  'Pulling the public version of you off the internet.',
-  'Turning that version into a funeral script.',
-  'Handing each mourner a voice.',
-  'Setting the room and dimming the lights.',
+const conjuringLines = [
+  'Pulling the public version of you off the internet…',
+  'Turning receipts into a funeral script…',
+  'Summoning the mourners…',
+  'Dimming the lights…',
 ];
 
 async function postFuneralRequest(payload) {
   const response = await fetch('/api/funeral', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
@@ -34,28 +31,11 @@ async function postFuneralRequest(payload) {
   return data;
 }
 
-function IntroScreen({ onBegin }) {
+function ConjuringScreen({ line }) {
   return (
-    <section className="screen screen-card intro-screen">
-      <p className="brand-mark">ROAST</p>
-      <h1 className="welcome-title">One public profile. One funeral.</h1>
-      <p className="screen-copy">
-        Give ROAST a public profile and it will turn that internet version of
-        you into a staged funeral.
-      </p>
-      <button className="primary-action" type="button" onClick={onBegin}>
-        Start
-      </button>
-    </section>
-  );
-}
-
-function LoadingScreen({ line }) {
-  return (
-    <section className="screen screen-card loading-screen">
-      <div className="status-orb" aria-hidden="true" />
-      <p className="brand-mark">ROAST</p>
-      <h2 className="screen-title">{line}</h2>
+    <section className="screen screen-card conjuring-screen screen-enter">
+      <img src={orbSrc} alt="" className="conjuring-orb" />
+      <p className="conjuring-text">{line}</p>
     </section>
   );
 }
@@ -63,29 +43,27 @@ function LoadingScreen({ line }) {
 export default function App() {
   const [form, setForm] = useState(initialForm);
   const [experience, setExperience] = useState(null);
-  const [screen, setScreen] = useState('intro');
+  const [screen, setScreen] = useState('summon');
   const [error, setError] = useState('');
-  const [loadingIndex, setLoadingIndex] = useState(0);
-  const loading = screen === 'loading';
+  const [lineIndex, setLineIndex] = useState(0);
+  const loading = screen === 'conjuring';
 
   useEffect(() => {
-    if (!loading) {
-      return undefined;
-    }
+    if (!loading) return undefined;
 
-    const timer = window.setInterval(() => {
-      setLoadingIndex((current) => (current + 1) % loadingLines.length);
-    }, 1900);
+    const timer = setInterval(() => {
+      setLineIndex((i) => (i + 1) % conjuringLines.length);
+    }, 2200);
 
-    return () => window.clearInterval(timer);
+    return () => clearInterval(timer);
   }, [loading]);
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setScreen('loading');
+    setScreen('conjuring');
     setError('');
     setExperience(null);
-    setLoadingIndex(0);
+    setLineIndex(0);
 
     try {
       const data = await postFuneralRequest({
@@ -93,11 +71,11 @@ export default function App() {
       });
       startTransition(() => {
         setExperience(data);
-        setScreen('result');
+        setScreen('funeral');
       });
     } catch (submitError) {
       setError(submitError.message);
-      setScreen('capture');
+      setScreen('summon');
     }
   }
 
@@ -108,9 +86,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="backdrop-glow" aria-hidden="true" />
-      {screen === 'intro' ? <IntroScreen onBegin={() => setScreen('capture')} /> : null}
 
-      {screen === 'capture' ? (
+      {screen === 'summon' ? (
         <main className="screen-wrap">
           <FuneralForm
             value={form.profileInput}
@@ -122,9 +99,11 @@ export default function App() {
         </main>
       ) : null}
 
-      {screen === 'loading' ? <LoadingScreen line={loadingLines[loadingIndex]} /> : null}
+      {screen === 'conjuring' ? (
+        <ConjuringScreen line={conjuringLines[lineIndex]} />
+      ) : null}
 
-      {screen === 'result' && experience ? (
+      {screen === 'funeral' && experience ? (
         <main className="screen-wrap">
           <FuneralStage experience={experience} />
         </main>

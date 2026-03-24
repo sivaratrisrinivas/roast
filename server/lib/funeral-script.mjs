@@ -1,9 +1,10 @@
 const DEFAULT_VOICE_IDS = {
   officiant: process.env.ELEVEN_VOICE_OFFICIANT_ID || 'JBFqnCBsd6RMkjVDRZzb',
-  mom: process.env.ELEVEN_VOICE_MOM_ID || 'EXAVITQu4vr4xnSDxMaL',
   ex: process.env.ELEVEN_VOICE_EX_ID || 'Xb7hH8MSUJpSbSDYk0k2',
-  boss: process.env.ELEVEN_VOICE_BOSS_ID || 'IKne3meq5aSn9XLyUdCD',
   best_friend: process.env.ELEVEN_VOICE_BEST_FRIEND_ID || 'N2lVS1w4EtoT3dr4eOWO',
+  // Kept for easy restore:
+  // mom: process.env.ELEVEN_VOICE_MOM_ID || 'EXAVITQu4vr4xnSDxMaL',
+  // boss: process.env.ELEVEN_VOICE_BOSS_ID || 'IKne3meq5aSn9XLyUdCD',
 };
 
 export function getSpeakerCatalog() {
@@ -14,23 +15,11 @@ export function getSpeakerCatalog() {
       mood: 'somber',
       voiceId: DEFAULT_VOICE_IDS.officiant,
     },
-    mom: {
-      id: 'mom',
-      label: 'Mom',
-      mood: 'crying',
-      voiceId: DEFAULT_VOICE_IDS.mom,
-    },
     ex: {
       id: 'ex',
       label: 'Ex',
       mood: 'bitter',
       voiceId: DEFAULT_VOICE_IDS.ex,
-    },
-    boss: {
-      id: 'boss',
-      label: 'Boss',
-      mood: 'awkward corporate grief',
-      voiceId: DEFAULT_VOICE_IDS.boss,
     },
     best_friend: {
       id: 'best_friend',
@@ -115,9 +104,7 @@ function buildReceipts(dossier) {
 export function buildFuneralScript(dossier, options = {}) {
   const speakerCatalog = getSpeakerCatalog();
   const quotes = dossier.highSignalQuotes || [];
-  const momQuote = pickQuote(quotes, ['instagram', 'x']);
   const exQuote = pickQuote(quotes, ['x']);
-  const bossQuote = pickQuote(quotes, ['linkedin']);
   const friendQuote = pickQuote(quotes, ['instagram', 'x', 'linkedin']);
 
   const subjectName = cleanPhrase(
@@ -150,10 +137,6 @@ export function buildFuneralScript(dossier, options = {}) {
     pickFirst(dossier.relationshipRedFlags, 'kept sounding emotionally unavailable with good wifi'),
     'kept sounding emotionally unavailable with good wifi',
   );
-  const workStyle = cleanPhrase(
-    pickFirst(dossier.workStyle, 'was loyal to shipping, if not always to inboxes'),
-    'was loyal to shipping, if not always to inboxes',
-  );
   const friendMaterial = cleanPhrase(
     pickFirst(dossier.friendMaterial, 'was funnier and more chaotic than any of this should probably admit'),
     'was funnier and more chaotic than any of this should probably admit',
@@ -166,20 +149,8 @@ export function buildFuneralScript(dossier, options = {}) {
       label: speakerCatalog.officiant.label,
       mood: speakerCatalog.officiant.mood,
       voiceId: speakerCatalog.officiant.voiceId,
-      text: `[somber][measured] We are gathered here today to remember ${subjectName}. ${obituary}. The internet arrived early, carrying screenshots.`,
-      citations: momQuote ? [momQuote] : [],
-    },
-    {
-      id: 'mom-tribute',
-      speaker: speakerCatalog.mom.id,
-      label: speakerCatalog.mom.label,
-      mood: speakerCatalog.mom.mood,
-      voiceId: speakerCatalog.mom.voiceId,
-      text: `[crying][voice breaks] He was such a bright child, and yet somehow ${absencePattern}. I kept seeing ${recurringTheme}, but not enough evidence of sleep. Even now I hear him saying, "${quoteText(
-        momQuote,
-        'I am still figuring it out',
-      )}", and I want to ask whether he ever figured out how to call his mother back.`,
-      citations: momQuote ? [momQuote] : [],
+      text: `[somber][measured] We are gathered here today to remember ${subjectName}. ${obituary}. The internet arrived early, carrying screenshots. ${absencePattern}, and yet somehow the timeline never stopped loading.`,
+      citations: [],
     },
     {
       id: 'ex-tribute',
@@ -190,20 +161,8 @@ export function buildFuneralScript(dossier, options = {}) {
       text: `[bitter laugh][sharp] I loved the version of ${subjectName} that existed between posts. The rest of the time, ${redFlag}. You can actually see it in the public record. He typed, "${quoteText(
         exQuote,
         'another late night, another beautifully avoidant sentence',
-      )}", like a man subtweeting the relationship while he was still inside it.`,
+      )}", like a man subtweeting the relationship while he was still inside it. The pattern was always ${recurringTheme} — and I was supposed to compete with that.`,
       citations: exQuote ? [exQuote] : [],
-    },
-    {
-      id: 'boss-tribute',
-      speaker: speakerCatalog.boss.id,
-      label: speakerCatalog.boss.label,
-      mood: speakerCatalog.boss.mood,
-      voiceId: speakerCatalog.boss.voiceId,
-      text: `[formal][careful pause] On behalf of leadership, we appreciated that ${subjectName} ${workStyle}. Their LinkedIn confirmed the same thing with unusual confidence: "${quoteText(
-        bossQuote,
-        'shipping is my love language',
-      )}". We lost a builder today, and possibly the only person who could turn a humblebrag into an operational update.`,
-      citations: bossQuote ? [bossQuote] : [],
     },
     {
       id: 'friend-tribute',
@@ -214,7 +173,7 @@ export function buildFuneralScript(dossier, options = {}) {
       text: `[soft laugh][trying not to cry] Honestly, this is the most ${subjectName} ending possible. A beautiful room, a strange amount of self-awareness, and receipts projected on the wall. Underneath the ${braggingPattern}, there was someone who ${tenderness}. Also, for the record, "${quoteText(
         friendQuote,
         'please do not post this',
-      )}" is now a terrible final wish because obviously we posted all of this.`,
+      )}" is now a terrible final wish because obviously we posted all of this. ${friendMaterial}.`,
       citations: friendQuote ? [friendQuote] : [],
     },
     {
@@ -223,7 +182,7 @@ export function buildFuneralScript(dossier, options = {}) {
       label: speakerCatalog.officiant.label,
       mood: 'final blessing',
       voiceId: speakerCatalog.officiant.voiceId,
-      text: `[whisper][long pause] Let the record show that ${subjectName} was adored, observed, and occasionally outperformed by their own timeline. May the algorithm rest in silence. ${friendMaterial}.`,
+      text: `[whisper][long pause] Let the record show that ${subjectName} was adored, observed, and occasionally outperformed by their own timeline. May the algorithm rest in silence.`,
       citations: [],
     },
   ];
@@ -256,11 +215,11 @@ export function buildFuneralAgentConversation(dossier, built) {
     'You are not here to chat. You are here to perform.',
     'When the conversation begins, wait for the user message "Run my funeral now." Then deliver the entire funeral service in one continuous performance.',
     'Never ask follow-up questions, never explain the setup, never mention tools, and never break character.',
-    'Keep the exact order of speakers: Officiant, Mom, Ex, Boss, Best Friend, Officiant.',
+    'Keep the exact order of speakers: Officiant, Ex, Best Friend, Officiant.',
     'Stay very close to the provided funeral script. Only smooth wording slightly if needed for speech.',
     'Keep the tone somber, theatrical, slightly uncomfortable, and genuinely funny.',
-    'Preserve the emotional delivery tags already written into the script such as [somber], [crying], [voice breaks], [bitter laugh], [formal], [soft laugh], [whisper], and [long pause].',
-    'If your agent has multi-voice support configured, switch voices for each role using the configured labels that match these roles: Officiant, Mom, Ex, Boss, Best Friend.',
+    'Preserve the emotional delivery tags already written into the script such as [somber], [bitter laugh], [soft laugh], [whisper], and [long pause].',
+    'If your agent has multi-voice support configured, switch voices for each role using the configured labels that match these roles: Officiant, Ex, Best Friend.',
     'If multi-voice support is not configured, perform the full service in the default voice while still making each role feel distinct.',
     `The funeral subject is ${built.subjectName}.`,
   ].join(' ');
@@ -273,7 +232,7 @@ export function buildFuneralAgentConversation(dossier, built) {
       (receipt, index) =>
         `${index + 1}. ${receipt.heading}: ${receipt.detail}`,
     ),
-    'Perform this exact six-part funeral script:',
+    'Perform this exact four-part funeral script:',
     ...built.script.map(
       (segment, index) =>
         `${index + 1}. ${segment.label}: ${segment.text}`,

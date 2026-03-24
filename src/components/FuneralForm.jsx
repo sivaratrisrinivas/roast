@@ -1,33 +1,29 @@
+import logoSrc from '../assets/logo.png';
+
 export function FuneralForm({ value, loading, error, onSubmit, onChange }) {
   return (
-    <section className="screen screen-card capture-screen">
-      <p className="brand-mark">ROAST</p>
-      <h2 className="screen-title">Paste one public profile.</h2>
-      <p className="screen-copy">
-        Use a public profile URL, GitHub, website, or type an X handle.
-      </p>
+    <section className="screen screen-card summon-screen screen-enter">
+      <img src={logoSrc} alt="ROAST" className="hero-logo" />
+      <h1 className="app-title">ROAST</h1>
+      <p className="tagline">Paste a public profile. We'll write the eulogy.</p>
 
-      <form className="single-input-form" onSubmit={onSubmit}>
+      <form className="summon-form" onSubmit={onSubmit}>
         <input
           className="profile-input"
           type="text"
           value={value}
-          placeholder="@handle or linkedin.com/in/name"
-          onChange={(event) => onChange(event.target.value)}
+          placeholder="github.com/handle, x.com/handle, any URL…"
+          onChange={(e) => onChange(e.target.value)}
+          autoFocus
         />
         <button
           className="primary-action"
           type="submit"
           disabled={loading || !value.trim()}
         >
-          Generate ROAST
+          Summon the Funeral
         </button>
       </form>
-
-      <p className="micro-note">
-        Examples: `@name`, `https://x.com/name`, `github.com/name`,
-        `linkedin.com/in/name`, `yourname.com`
-      </p>
 
       {error ? <p className="error-copy">{error}</p> : null}
     </section>

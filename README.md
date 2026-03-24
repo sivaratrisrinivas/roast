@@ -1,41 +1,37 @@
 # ROAST
 
-ROAST turns one public profile into a dark, theatrical AI funeral.
+ROAST turns a public profile into a live, interactive AI funeral.
 
-Paste one public profile, handle, GitHub, or website. ROAST searches the public web for usable signals, turns them into a funeral-style roast, and performs it with ElevenLabs.
+Paste a public profile, handle, GitHub, or website. ROAST uses Firecrawl to scrape the public web for real signal, extracts a structured dossier, writes a multi-character roast script, and seamlessly hands it off to an ElevenLabs Conversational AI Agent (DeathVoice) to perform live in your browser.
 
 ## What It Does
 
 ROAST is built to do one thing well:
 
-1. Take one public profile or handle.
+1. Take one public profile URL or handle.
 2. Find useful public web material.
 3. Turn that material into a sharp funeral-style roast.
-4. Perform it as a staged funeral.
+4. Perform it live via an ElevenLabs Agent.
 
 The product flow stays simple:
 
-1. Click `Start`.
-2. Paste one public profile and click `Generate ROAST`.
-3. Click `Start Live ROAST` or `Play ROAST`.
-
-That keeps the main goal achievable in no more than 3 clicks.
+1. Paste a public profile and click `Summon the Funeral`.
+2. Wait while the AI reads the internet and extracts receipts (The Conjuring).
+3. Connect your mic and listen to the agent deliver your eulogy (The Funeral).
 
 ## How It Works
 
 In plain English:
 
 1. The frontend sends the pasted profile to `/api/funeral`.
-2. The backend figures out what kind of input it is.
-3. Firecrawl Search runs several queries to find public pages with real text.
+2. The backend figures out what kind of input it is (X, LinkedIn, GitHub, etc.).
+3. Firecrawl Search runs multiple parallel queries to find public pages with real text.
 4. The backend filters out thin or junk results and keeps the strongest sources.
-5. Firecrawl Agent tries to turn those sources into a structured dossier.
-6. If Firecrawl Agent is slow or fails, Firecrawl Extract is used as a fallback.
-7. If both fail, the backend still builds a simpler local dossier.
-8. The app writes a six-part funeral script: officiant, mom, ex, boss, best friend, officiant.
-9. If an ElevenLabs agent is configured, ROAST starts a live ElevenAgent session and gives it the funeral prompt, context, and kickoff message.
-10. If no ElevenLabs agent is configured, ROAST falls back to ElevenLabs text-to-dialogue and generates a multi-speaker audio file.
-11. The result screen gives the user one action to start the performance.
+5. Firecrawl AI extracts a structured dossier (quotes, bragging patterns, red flags).
+6. A multi-part funeral script (Officiant, Ex, Best Friend) is drafted from the dossier.
+7. The App initializes an ElevenLabs Conversational AI session via WebSocket.
+8. The dossier and script are sent to the agent as real-time context.
+9. The DeathVoice agent performs the funeral live in your browser.
 
 ## Tech Stack
 
