@@ -86,7 +86,7 @@ What changes for Vercel:
 
 1. The frontend build goes to `public/` instead of `dist/`.
 2. Vercel serves `public/` as static files.
-3. The Express API is exported from `server.mjs` and runs as the backend function.
+3. The Express API is exposed through `api/[...path].mjs`, which mounts the existing backend as a Vercel Function.
 
 Deploy steps:
 
@@ -154,9 +154,9 @@ Important files:
 - `src/App.jsx`
 - `src/components/FuneralForm.jsx`
 - `src/components/FuneralStage.jsx`
+- `api/[...path].mjs`
 - `server/app.mjs`
 - `server/index.mjs`
-- `server.mjs`
 - `server/lib/funeral-service.mjs`
 - `server/lib/funeral-script.mjs`
 - `server/lib/mock-data.mjs`
