@@ -9,6 +9,7 @@
     "dev:client": "./scripts/build-client.sh --watch",
     "dev:server": "./scripts/bun.sh --watch server/index.mjs",
     "build": "./scripts/build-client.sh --minify",
+    "build:vercel": "ROAST_CLIENT_OUTDIR=public ./scripts/build-client.sh --minify",
     "preview": "./scripts/bun.sh server/index.mjs",
     "start": "./scripts/bun.sh server/index.mjs"
   },

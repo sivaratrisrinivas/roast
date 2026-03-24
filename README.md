@@ -78,6 +78,39 @@ bun run build
 bun run start
 ```
 
+## Deploy on Vercel
+
+This repo is now set up for Vercel with Bun.
+
+What changes for Vercel:
+
+1. The frontend build goes to `public/` instead of `dist/`.
+2. Vercel serves `public/` as static files.
+3. The Express API is exported from `server.mjs` and runs as the backend function.
+
+Deploy steps:
+
+1. Push this repo to GitHub.
+2. Import the repo into Vercel.
+3. In Vercel project settings, add the same environment variables you use locally:
+   - `FIRECRAWL_API_KEY`
+   - `ELEVENLABS_API_KEY`
+   - `ELEVENLABS_AGENT_ID` if you want live ElevenAgent mode
+   - any optional voice override IDs you use
+4. Deploy.
+
+Vercel uses:
+
+- `bun install`
+- `bun run build:vercel`
+- Bun runtime via `bunVersion: "1.x"`
+
+Local Bun dev still works the same:
+
+```bash
+bun run dev
+```
+
 ## Environment Variables
 
 Put these in:
@@ -121,7 +154,9 @@ Important files:
 - `src/App.jsx`
 - `src/components/FuneralForm.jsx`
 - `src/components/FuneralStage.jsx`
+- `server/app.mjs`
 - `server/index.mjs`
+- `server.mjs`
 - `server/lib/funeral-service.mjs`
 - `server/lib/funeral-script.mjs`
 - `server/lib/mock-data.mjs`
