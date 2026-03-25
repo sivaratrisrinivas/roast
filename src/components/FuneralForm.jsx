@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function FuneralForm({
@@ -10,6 +11,15 @@ export function FuneralForm({
   onEnableSound,
 }) {
   const isReady = form.profileInput.trim().length > 3 && !loading;
+  const [showGeminiKey, setShowGeminiKey] = useState(
+    Boolean(form.geminiApiKey?.trim()),
+  );
+
+  useEffect(() => {
+    if (form.geminiApiKey?.trim()) {
+      setShowGeminiKey(true);
+    }
+  }, [form.geminiApiKey]);
 
   return (
     <div className="summon-wrapper">
@@ -38,6 +48,40 @@ export function FuneralForm({
               required
             />
           </label>
+
+          <details
+            className="optional-panel"
+            open={showGeminiKey}
+            onToggle={(event) => setShowGeminiKey(event.currentTarget.open)}
+          >
+            <summary className="optional-toggle">
+              <span className="field-label">Optional</span>
+              <span className="optional-toggle-copy">
+                Use your own Gemini key for trailer video
+              </span>
+            </summary>
+
+            <div className="optional-body">
+              <label className="field-stack">
+                <span className="field-label">Personal Gemini API Key</span>
+                <input
+                  className="summon-input"
+                  type="password"
+                  value={form.geminiApiKey}
+                  placeholder="AIza..."
+                  onChange={(event) => onChange('geminiApiKey', event.target.value)}
+                  autoComplete="off"
+                  spellCheck="false"
+                  disabled={loading}
+                />
+              </label>
+              <p className="optional-note">
+                If you add your own key, trailer video generation uses your credits
+                and can start rendering during the service. It is only kept in
+                memory for that trailer job and is never shown back in the UI.
+              </p>
+            </div>
+          </details>
 
           <div className="summon-actions">
             <div className="summon-audio-rail">

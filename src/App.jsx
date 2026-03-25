@@ -7,6 +7,7 @@ import chapelBgSrc from './assets/dark_chapel_bg.png';
 
 const initialForm = {
   profileInput: '',
+  geminiApiKey: '',
 };
 
 const whisperLines = [
@@ -281,6 +282,7 @@ export default function App() {
                 experience={experience}
                 onAmbientModeChange={setFuneralAmbientMode}
                 onReturnHome={handleReturnHome}
+                userGeminiApiKey={form.geminiApiKey}
               />
             </motion.div>
           )}

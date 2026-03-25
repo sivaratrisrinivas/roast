@@ -96,6 +96,7 @@ export function FuneralStage({
   onAmbientModeChange,
   ambientReady,
   resumeAmbientScore,
+  userGeminiApiKey,
 }) {
   const [started, setStarted] = useState(false);
   const [audioError, setAudioError] = useState('');
@@ -103,6 +104,17 @@ export function FuneralStage({
   const [funeralDone, setFuneralDone] = useState(false);
   const [currentSpeakerIndex, setCurrentSpeakerIndex] = useState(0);
   const [copiedLine, setCopiedLine] = useState(false);
+  const [trailerStatus, setTrailerStatus] = useState('idle');
+  const [trailerError, setTrailerError] = useState('');
+  const [trailerScenes, setTrailerScenes] = useState([]);
+  const [trailerJobId, setTrailerJobId] = useState('');
+  const [trailerProgress, setTrailerProgress] = useState({
+    sceneCount: 2,
+    completedScenes: 0,
+    currentSceneIndex: 1,
+    currentSceneLabel: 'Mom',
+  });
+  const [trailerVisible, setTrailerVisible] = useState(false);
 
   const kickoffSentRef = useRef(false);
   const funeralDeliveredRef = useRef(false);
@@ -112,6 +124,7 @@ export function FuneralStage({
   const activityIntervalRef = useRef(null);
   const completionTimerRef = useRef(null);
   const aiMessageSeenRef = useRef(false);
+  const trailerAutostartedRef = useRef(false);
 
   useEffect(() => {
     currentSpeakerIndexRef.current = currentSpeakerIndex;
@@ -133,6 +146,9 @@ export function FuneralStage({
     return buildEstimatedTimeline(experience.script);
   }, [experience.script]);
   const visualLeadMs = 1200;
+  const personalGeminiApiKey = `${userGeminiApiKey || ''}`.trim();
+  const usingPersonalGeminiKey = Boolean(personalGeminiApiKey);
+  const trailerAvailable = usingPersonalGeminiKey;
 
   function clearPerformanceSchedule() {
     performanceTimersRef.current.forEach((timerId) => {
@@ -324,6 +340,131 @@ export function FuneralStage({
     }
   }
 
+  function buildTrailerPayload() {
+    return {
+      subjectName: experience.subjectName,
+      summary: experience.summary,
+      receipts: experience.receipts,
+      geminiApiKey: personalGeminiApiKey || undefined,
+      script: experience.script.map((segment) => ({
+        id: segment.id,
+        speaker: segment.speaker,
+        label: segment.label,
+        text: segment.text,
+      })),
+    };
+  }
+
+  function applyTrailerState(payload = {}) {
+    setTrailerJobId(payload.jobId || '');
+    setTrailerStatus(payload.status || 'idle');
+    setTrailerError(payload.error || '');
+    setTrailerScenes(Array.isArray(payload.scenes) ? payload.scenes : []);
+    setTrailerProgress(
+      payload.progress || {
+        sceneCount: 2,
+        completedScenes: 0,
+        currentSceneIndex: 1,
+        currentSceneLabel: 'Mom',
+      },
+    );
+  }
+
+  async function requestTrailerGeneration() {
+    if (!trailerAvailable) {
+      setTrailerStatus('error');
+      setTrailerError('Add your Gemini API key to enable trailer video generation.');
+      return null;
+    }
+
+    setTrailerStatus('loading');
+    setTrailerError('');
+
+    try {
+      const response = await fetch('/api/trailer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(buildTrailerPayload()),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to generate the trailer.');
+      }
+
+      applyTrailerState(payload);
+      return payload;
+    } catch (error) {
+      setTrailerError(
+        error?.message || 'Unable to generate the trailer right now.',
+      );
+      setTrailerStatus('error');
+      return null;
+    }
+  }
+
+  async function handleGenerateTrailer() {
+    if (trailerStatus === 'ready') {
+      setTrailerVisible(true);
+      return;
+    }
+
+    setTrailerVisible(true);
+
+    if (!trailerJobId) {
+      await requestTrailerGeneration();
+    }
+  }
+
+  useEffect(() => {
+    if (!usingPersonalGeminiKey || !trailerAvailable || trailerAutostartedRef.current) {
+      return;
+    }
+
+    trailerAutostartedRef.current = true;
+    requestTrailerGeneration();
+  }, [trailerAvailable, usingPersonalGeminiKey]);
+
+  useEffect(() => {
+    if (!trailerJobId || !['queued', 'running', 'loading'].includes(trailerStatus)) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function pollTrailerJob() {
+      try {
+        const response = await fetch(`/api/trailer/${trailerJobId}`);
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload.error || 'Unable to load the trailer status.');
+        }
+
+        if (!cancelled) {
+          applyTrailerState(payload);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setTrailerError(
+            error?.message || 'Unable to load the trailer status.',
+          );
+          setTrailerStatus('error');
+        }
+      }
+    }
+
+    pollTrailerJob();
+    const intervalId = setInterval(pollTrailerJob, 4000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [trailerJobId, trailerStatus]);
+
   if (audioError) {
     return (
       <div className="funeral-wrapper">
@@ -457,6 +598,113 @@ export function FuneralStage({
                     <p className="memorial-line">{remembranceLine}</p>
                   </article>
                 ) : null}
+
+                <div className="trailer-panel">
+                  <div className="trailer-panel-copy">
+                    <p className="micro-text">Trailer Mode</p>
+                    <p className="trailer-panel-body">
+                      Turn these eulogies into two animated 8-second teaser shots.
+                    </p>
+                  </div>
+
+                  {!trailerVisible ? (
+                    <div className="trailer-panel-actions">
+                      <button
+                        type="button"
+                        className="service-action service-action-secondary"
+                        onClick={handleGenerateTrailer}
+                        disabled={!trailerAvailable}
+                      >
+                        {trailerStatus === 'ready'
+                          ? 'Show Trailer'
+                          : trailerStatus === 'loading' ||
+                              trailerStatus === 'queued' ||
+                              trailerStatus === 'running'
+                            ? 'Open Trailer'
+                            : trailerAvailable
+                              ? 'Generate Trailer'
+                              : 'Add Gemini Key'}
+                      </button>
+                      <p className="micro-text trailer-helper">
+                        {trailerStatus === 'ready'
+                          ? 'The clips are ready. Open them now.'
+                          : trailerStatus === 'loading' ||
+                              trailerStatus === 'queued' ||
+                              trailerStatus === 'running'
+                            ? funeralDone
+                              ? 'The trailer has been rendering in the background. Open it to see live progress.'
+                              : 'The trailer is already rendering in the background while the eulogies play.'
+                          : usingPersonalGeminiKey
+                            ? 'Your Gemini key is active, so trailer rendering can start before the service ends.'
+                            : 'Trailer Mode is off until the user adds their own Gemini API key on the home screen.'}
+                      </p>
+                      {trailerError ? (
+                        <p className="micro-text trailer-error">{trailerError}</p>
+                      ) : null}
+                    </div>
+                  ) : trailerStatus === 'ready' ? (
+                    <div className="trailer-grid">
+                      {trailerScenes.map((scene) => (
+                        <article key={scene.id} className="trailer-card">
+                          <div className="trailer-card-copy">
+                            <p className="micro-text">{scene.label}</p>
+                            <p className="trailer-caption">{scene.caption}</p>
+                          </div>
+                          <video
+                            className="trailer-video"
+                            src={scene.videoUrl}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            controls
+                            preload="metadata"
+                          />
+                          <a
+                            className="service-action service-action-secondary trailer-download"
+                            href={scene.videoUrl}
+                            download={`${scene.id}.mp4`}
+                          >
+                            Download Clip
+                          </a>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="trailer-panel-actions">
+                      <div className="trailer-progress-card">
+                        <p className="micro-text">
+                          Rendering Scene {trailerProgress.currentSceneIndex} of{' '}
+                          {trailerProgress.sceneCount}
+                        </p>
+                        <p className="trailer-panel-body">
+                          {trailerProgress.currentSceneLabel || 'Preparing the next shot'}
+                        </p>
+                        <div className="trailer-progress-bar" aria-hidden="true">
+                          <span
+                            className="trailer-progress-fill"
+                            style={{
+                              width: `${Math.max(
+                                12,
+                                (trailerProgress.completedScenes /
+                                  Math.max(trailerProgress.sceneCount, 1)) *
+                                  100,
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <p className="micro-text trailer-helper">
+                        {funeralDone
+                          ? 'The videos are still rendering. They should appear here automatically when ready.'
+                          : 'Rendering continues while the service is still happening.'}
+                      </p>
+                      {trailerError ? (
+                        <p className="micro-text trailer-error">{trailerError}</p>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
 
                 <div className="service-actions">
                   {remembranceLine ? (

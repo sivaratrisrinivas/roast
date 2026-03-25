@@ -11,6 +11,12 @@ import {
   getLiveAgentConfig,
   getSignedUrlForAgent,
 } from './lib/funeral-service.mjs';
+import {
+  createOrReuseTrailerJob,
+  getTrailerJob,
+  getTrailerGenerationConfig,
+  proxyTrailerVideo,
+} from './lib/trailer-service.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,7 +34,9 @@ export function createApp(options = {}) {
       ok: true,
       firecrawlConfigured: Boolean(process.env.FIRECRAWL_API_KEY),
       elevenConfigured: Boolean(process.env.ELEVENLABS_API_KEY),
+      geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
       liveAgent: getLiveAgentConfig(),
+      trailer: getTrailerGenerationConfig(),
     });
   });
 
@@ -65,6 +73,7 @@ export function createApp(options = {}) {
       });
       response.json({
         ...experience,
+        trailer: getTrailerGenerationConfig(),
         requestId,
       });
     } catch (error) {
@@ -74,6 +83,46 @@ export function createApp(options = {}) {
       response.status(500).json({
         error: error.message || 'Unable to prepare the funeral.',
         requestId,
+      });
+    }
+  });
+
+  app.post('/api/trailer', async (request, response) => {
+    try {
+      const trailerJob = createOrReuseTrailerJob(request.body || {});
+      response.json(trailerJob);
+    } catch (error) {
+      const statusCode = /GEMINI_API_KEY/i.test(error.message || '') ? 503 : 500;
+      response.status(statusCode).json({
+        error: error.message || 'Unable to generate the trailer.',
+      });
+    }
+  });
+
+  app.get('/api/trailer/:jobId', async (request, response) => {
+    try {
+      const trailerJob = getTrailerJob(`${request.params.jobId || ''}`);
+      response.json(trailerJob);
+    } catch (error) {
+      const statusCode = /not found/i.test(error.message || '') ? 404 : 500;
+      response.status(statusCode).json({
+        error: error.message || 'Unable to load the trailer job.',
+      });
+    }
+  });
+
+  app.get('/api/trailer/proxy', async (request, response) => {
+    try {
+      const asset = await proxyTrailerVideo(
+        `${request.query.jobId || ''}`,
+        `${request.query.uri || ''}`,
+      );
+      response.setHeader('Content-Type', asset.mimeType);
+      response.setHeader('Cache-Control', 'private, max-age=3600');
+      response.send(asset.buffer);
+    } catch (error) {
+      response.status(500).json({
+        error: error.message || 'Unable to fetch the trailer video.',
       });
     }
   });
