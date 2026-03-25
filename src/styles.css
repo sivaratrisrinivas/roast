@@ -185,6 +185,50 @@ button, input {
   justify-content: space-between;
   gap: 1rem;
   margin-top: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.summon-audio-rail {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  flex-direction: column;
+}
+
+.sound-toggle {
+  font-family: var(--font-sans);
+  font-size: 0.64rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(243,239,231,0.68);
+  cursor: pointer;
+  padding: 0.72rem 0.96rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  transition: border-color 0.35s ease, background 0.35s ease, color 0.35s ease, transform 0.35s ease;
+}
+
+.sound-toggle:hover {
+  color: var(--text-primary);
+  border-color: rgba(243,239,231,0.24);
+  background: rgba(255,255,255,0.08);
+  transform: translateY(-1px);
+}
+
+.sound-toggle:disabled {
+  opacity: 0.38;
+  cursor: default;
+  transform: none;
+}
+
+.sound-toggle-active {
+  color: var(--text-primary);
+  border-color: rgba(214,206,192,0.26);
+  background:
+    radial-gradient(circle at center, rgba(214,206,192,0.12), transparent 70%),
+    rgba(255,255,255,0.06);
+  box-shadow: 0 0 22px rgba(214,206,192,0.09);
 }
 
 .field-stack {

@@ -1,6 +1,14 @@
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function FuneralForm({ form, loading, error, onSubmit, onChange, ambientReady }) {
+export function FuneralForm({
+  form,
+  loading,
+  error,
+  onSubmit,
+  onChange,
+  ambientReady,
+  onEnableSound,
+}) {
   const isReady = form.profileInput.trim().length > 3 && !loading;
 
   return (
@@ -14,9 +22,6 @@ export function FuneralForm({ form, loading, error, onSubmit, onChange, ambientR
         <h1 className="cinematic-title">ROAST</h1>
         <p className="summon-tagline">
           A short funeral for your public internet self.
-        </p>
-        <p className="micro-text">
-          {ambientReady ? 'Ambient score is on.' : 'Sound on. Music begins after your first tap.'}
         </p>
 
         <form className="clean-form" onSubmit={onSubmit}>
@@ -35,7 +40,21 @@ export function FuneralForm({ form, loading, error, onSubmit, onChange, ambientR
           </label>
 
           <div className="summon-actions">
-            <p className="micro-text">One public page is enough.</p>
+            <div className="summon-audio-rail">
+              <button
+                type="button"
+                className={`sound-toggle${ambientReady ? ' sound-toggle-active' : ''}`}
+                onClick={onEnableSound}
+                disabled={loading}
+              >
+                {ambientReady ? 'Score On' : 'Enable Score'}
+              </button>
+              <p className="micro-text">
+                {ambientReady
+                  ? 'Cinematic bed is live.'
+                  : 'Most browsers wait for one tap before audio begins.'}
+              </p>
+            </div>
 
             <AnimatePresence>
               {isReady && (

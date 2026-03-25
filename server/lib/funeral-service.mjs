@@ -39,15 +39,8 @@ let voiceCache = {
   voices: null,
 };
 
-function createLogger(requestId = 'no-request-id') {
-  const startedAt = Date.now();
-
-  return (step, data = {}) => {
-    const durationMs = Date.now() - startedAt;
-    console.log(
-      `[ROAST][${requestId}][+${durationMs}ms] ${step} ${JSON.stringify(data)}`,
-    );
-  };
+function createLogger() {
+  return () => {};
 }
 
 function redactInput(value = '') {
@@ -735,7 +728,7 @@ async function scrapeUrl(url) {
   };
 }
 
-async function gatherPublicSources(platform, rawValue, logger = () => {}) {
+async function gatherPublicSources(platform, rawValue, logger = () => { }) {
   const value = normalizeHandle(rawValue);
   const parsedX = platform === 'x' ? parseXReference(rawValue) : null;
 
@@ -853,9 +846,9 @@ async function gatherPublicSources(platform, rawValue, logger = () => {}) {
   const filteredSources =
     platform === 'x' && seed.requestedPostId
       ? dedupedSources.filter((source) => {
-          const haystack = `${source.url} ${source.title} ${source.description} ${source.markdown}`.toLowerCase();
-          return haystack.includes(seed.requestedPostId.toLowerCase());
-        })
+        const haystack = `${source.url} ${source.title} ${source.description} ${source.markdown}`.toLowerCase();
+        return haystack.includes(seed.requestedPostId.toLowerCase());
+      })
       : dedupedSources;
 
   if (platform === 'x' && seed.requestedPostId && !filteredSources.length) {
@@ -937,11 +930,11 @@ function buildFallbackDossier(sources, input = {}, userEvidence = []) {
         input.displayName ||
         normalizeHandle(
           input.profileInput ||
-            input.xHandle ||
-            input.linkedinHandle ||
-            input.instagramHandle ||
-            input.githubHandle ||
-            input.websiteUrl,
+          input.xHandle ||
+          input.linkedinHandle ||
+          input.instagramHandle ||
+          input.githubHandle ||
+          input.websiteUrl,
         ) ||
         'Unknown subject',
       profession: 'person discoverable through public profile breadcrumbs',
@@ -1064,8 +1057,8 @@ function getDossierSchema() {
 function buildDossierPrompt(sources, input = {}, userEvidence = []) {
   const evidenceContext = userEvidence.length
     ? `Here are the user-submitted receipts. Treat them as explicit evidence, especially when social platforms are blocked:\n\n${buildUserEvidenceContext(
-        userEvidence,
-      )}`
+      userEvidence,
+    )}`
     : 'No user-submitted receipts were provided.';
 
   return [
@@ -1086,7 +1079,7 @@ async function extractDossierWithAgent(
   sources,
   input = {},
   userEvidence = [],
-  logger = () => {},
+  logger = () => { },
 ) {
   const startPayload = await firecrawlRequest('/agent', {
     prompt: buildDossierPrompt(sources, input, userEvidence),
@@ -1147,7 +1140,7 @@ async function extractDossierWithExtract(
   sources,
   input = {},
   userEvidence = [],
-  logger = () => {},
+  logger = () => { },
 ) {
   const startPayload = await firecrawlRequest('/extract', {
     urls: sources.map((source) => source.url),
@@ -1241,7 +1234,7 @@ async function generateDialogueAudio(script) {
   };
 }
 
-async function validateVoiceAssignments(script, logger = () => {}) {
+async function validateVoiceAssignments(script, logger = () => { }) {
   if (!process.env.ELEVENLABS_API_KEY) {
     logger('elevenlabs.voice_validation.skipped', {
       reason: 'missing_api_key',

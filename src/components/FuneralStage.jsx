@@ -15,14 +15,6 @@ function stripPerformanceTags(text) {
   return `${text || ''}`.replace(/\[.*?\]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-function getMessageExcerpt(value) {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  return value.replace(/\s+/g, ' ').trim().slice(0, 140);
-}
-
 function getCitationIds(segment) {
   return new Set(
     (segment?.citations || [])
@@ -103,6 +95,7 @@ export function FuneralStage({
   onReturnHome,
   onAmbientModeChange,
   ambientReady,
+  resumeAmbientScore,
 }) {
   const [started, setStarted] = useState(false);
   const [audioError, setAudioError] = useState('');
@@ -141,9 +134,6 @@ export function FuneralStage({
   }, [experience.script]);
   const visualLeadMs = 1200;
 
-  const totalEstimatedDurationMs =
-    estimatedTimeline[estimatedTimeline.length - 1]?.endMs || 0;
-
   function clearPerformanceSchedule() {
     performanceTimersRef.current.forEach((timerId) => {
       clearTimeout(timerId);
@@ -165,11 +155,6 @@ export function FuneralStage({
     clearPerformanceSchedule();
     performanceScheduledRef.current = true;
 
-    console.log('[DeathVoice] Scheduling estimated performance timeline', {
-      segments: estimatedTimeline,
-      totalEstimatedDurationMs,
-    });
-
     if (conversationRef.current.status === 'connected') {
       activityIntervalRef.current = setInterval(() => {
         if (
@@ -189,12 +174,6 @@ export function FuneralStage({
       const timerId = setTimeout(() => {
         currentSpeakerIndexRef.current = entry.index;
         setCurrentSpeakerIndex(entry.index);
-        console.log('[DeathVoice] Timeline speaker transition', {
-          currentSpeakerIndex: entry.index,
-          segmentId: experience.script[entry.index]?.id || null,
-          speaker: experience.script[entry.index]?.speaker || null,
-          label: experience.script[entry.index]?.label || null,
-        });
       }, Math.max(0, entry.startMs - visualLeadMs));
 
       performanceTimersRef.current.push(timerId);
@@ -202,48 +181,14 @@ export function FuneralStage({
 
   }
 
-  useEffect(() => {
-    console.log('[DeathVoice] Experience mounted', {
-      subjectName: experience.subjectName,
-      type: experience.type || experience.mode || 'unknown',
-      scriptLength: experience.script.length,
-      scriptSpeakers: experience.script.map((segment, index) => ({
-        index,
-        id: segment.id,
-        speaker: segment.speaker,
-        label: segment.label,
-        estimatedDurationMs: estimatedTimeline[index]?.durationMs || null,
-      })),
-      hasAgentConversation: Boolean(experience.agentConversation),
-      liveAgent: experience.liveAgent,
-    });
-  }, [estimatedTimeline, experience]);
-
   const conversation = useConversation({
     micMuted: true,
-    onConnect: () => console.log('[DeathVoice] Connected'),
-    onDisconnect: (details) => {
+    onDisconnect: () => {
       clearPerformanceSchedule();
-      console.log('[DeathVoice] Disconnected', details);
-    },
-    onStatusChange: ({ status }) => {
-      console.log('[DeathVoice] Status:', status);
-    },
-    onInterruption: () => {
-      console.log('[DeathVoice] User interruption detected while the agent was speaking');
     },
     onMessage: (message) => {
       const messageText =
         typeof message.message === 'string' ? message.message : '';
-
-      console.log('[DeathVoice] Message received', {
-        source: message.source || 'unknown',
-        type: message.type || null,
-        keys: Object.keys(message || {}),
-        excerpt: getMessageExcerpt(messageText),
-        capturedSpeakerIndex: currentSpeakerIndex,
-        refSpeakerIndex: currentSpeakerIndexRef.current,
-      });
 
       if (kickoffSentRef.current && message.source === 'ai' && messageText) {
         aiMessageSeenRef.current = true;
@@ -257,13 +202,6 @@ export function FuneralStage({
       }
     },
     onModeChange: ({ mode }) => {
-      console.log('[DeathVoice] Mode:', mode, {
-        kickoffSent: kickoffSentRef.current,
-        funeralDelivered: funeralDeliveredRef.current,
-        currentSpeakerIndex: currentSpeakerIndexRef.current,
-        isSpeaking: conversationRef.current?.isSpeaking ?? null,
-        status: conversationRef.current?.status ?? null,
-      });
       if (mode === 'speaking') {
         aiMessageSeenRef.current = true;
         onAmbientModeChange?.('ducked');
@@ -280,23 +218,17 @@ export function FuneralStage({
         completionTimerRef.current = setTimeout(() => {
           funeralDeliveredRef.current = true;
           setFuneralDone(true);
-          console.log('[DeathVoice] Agent returned to listening; ending session');
-          conversationRef.current.endSession().catch(() => {});
+          conversationRef.current.endSession().catch(() => { });
         }, 3200);
       }
     },
     onError: (error) => {
-      console.error('[DeathVoice] Error:', error);
       setAudioError(error?.message || 'Live ROAST failed to start. Try again in a moment.');
     },
   });
 
   useEffect(() => {
     if (!pendingKickoff || conversation.status !== 'connected') return;
-    console.log('[DeathVoice] Sending kickoff', {
-      contextLength: experience.agentConversation?.context?.length || 0,
-      kickoffMessage: experience.agentConversation?.kickoffMessage || null,
-    });
     clearPerformanceSchedule();
     performanceScheduledRef.current = false;
     kickoffSentRef.current = false;
@@ -314,19 +246,10 @@ export function FuneralStage({
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
 
-  useEffect(() => {
-    console.log('[DeathVoice] Active segment updated', {
-      currentSpeakerIndex,
-      segmentId: experience.script[currentSpeakerIndex]?.id || null,
-      speaker: experience.script[currentSpeakerIndex]?.speaker || null,
-      label: experience.script[currentSpeakerIndex]?.label || null,
-    });
-  }, [currentSpeakerIndex, experience.script]);
-
   useEffect(
     () => () => {
       clearPerformanceSchedule();
-      conversationRef.current.endSession().catch(() => {});
+      conversationRef.current.endSession().catch(() => { });
     },
     []
   );
@@ -344,11 +267,9 @@ export function FuneralStage({
     setAudioError('');
 
     try {
-      console.log('[DeathVoice] Starting session', {
-        liveAgent: experience.liveAgent,
-        hasAgentConversation: Boolean(experience.agentConversation),
-        currentSpeakerIndex: currentSpeakerIndexRef.current,
-      });
+      if (typeof resumeAmbientScore === 'function') {
+        await resumeAmbientScore();
+      }
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
       if (conversation.status === 'disconnected') {
@@ -436,9 +357,8 @@ export function FuneralStage({
             {speakerSteps.map((step) => (
               <div
                 key={step.id}
-                className={`speaker-track-step${
-                  step.active ? ' speaker-track-step-active' : ''
-                }`}
+                className={`speaker-track-step${step.active ? ' speaker-track-step-active' : ''
+                  }`}
               >
                 <span className="speaker-track-dot" />
                 <span className="speaker-track-label">{step.label}</span>

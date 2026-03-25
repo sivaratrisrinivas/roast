@@ -72,9 +72,8 @@ function ConjuringScreen({ lineIndex }) {
           {whisperLines.map((line, index) => (
             <span
               key={line}
-              className={`conjuring-progress-dot${
-                index <= progressIndex ? ' conjuring-progress-dot-active' : ''
-              }`}
+              className={`conjuring-progress-dot${index <= progressIndex ? ' conjuring-progress-dot-active' : ''
+                }`}
             />
           ))}
         </div>
@@ -92,6 +91,7 @@ export default function App() {
   const [ambientReady, setAmbientReady] = useState(false);
   const [funeralAmbientMode, setFuneralAmbientMode] = useState(null);
   const ambientScoreRef = useRef(null);
+  const ambientModeRef = useRef('landing');
 
   const ambientMode = useMemo(() => {
     if (screen === 'funeral' && funeralAmbientMode) {
@@ -104,6 +104,25 @@ export default function App() {
 
     return 'landing';
   }, [funeralAmbientMode, screen]);
+
+  useEffect(() => {
+    ambientModeRef.current = ambientMode;
+  }, [ambientMode]);
+
+  async function resumeAmbientScore() {
+    const score = ambientScoreRef.current;
+    if (!score) {
+      return;
+    }
+
+    try {
+      await score.resume();
+      score.setIntensity(ambientModeRef.current);
+      setAmbientReady(true);
+    } catch (_error) {
+      // Browser may still require a user gesture before AudioContext runs.
+    }
+  }
 
   useEffect(() => {
     if (screen !== 'conjuring') return undefined;
@@ -121,17 +140,19 @@ export default function App() {
     let cancelled = false;
 
     async function attemptResume() {
-      if (!ambientScoreRef.current) {
+      if (!ambientScoreRef.current || cancelled) {
         return;
       }
 
       try {
         await ambientScoreRef.current.resume();
 
-        if (!cancelled) {
-          setAmbientReady(true);
-          ambientScoreRef.current.setIntensity(ambientMode);
+        if (cancelled || !ambientScoreRef.current) {
+          return;
         }
+
+        setAmbientReady(true);
+        ambientScoreRef.current.setIntensity(ambientModeRef.current);
       } catch (_error) {
         // Browser autoplay rules may require a user gesture first.
       }
@@ -142,13 +163,16 @@ export default function App() {
     }
 
     attemptResume();
-    window.addEventListener('pointerdown', handleUserActivation, { passive: true });
-    window.addEventListener('keydown', handleUserActivation);
+    const captureOpts = { capture: true, passive: true };
+    window.addEventListener('pointerdown', handleUserActivation, captureOpts);
+    window.addEventListener('touchstart', handleUserActivation, captureOpts);
+    window.addEventListener('keydown', handleUserActivation, true);
 
     return () => {
       cancelled = true;
-      window.removeEventListener('pointerdown', handleUserActivation);
-      window.removeEventListener('keydown', handleUserActivation);
+      window.removeEventListener('pointerdown', handleUserActivation, true);
+      window.removeEventListener('touchstart', handleUserActivation, true);
+      window.removeEventListener('keydown', handleUserActivation, true);
       ambientScoreRef.current?.stop();
       ambientScoreRef.current = null;
       setAmbientReady(false);
@@ -165,6 +189,7 @@ export default function App() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    await resumeAmbientScore();
     setScreen('conjuring');
     setError('');
     setExperience(null);
@@ -173,20 +198,6 @@ export default function App() {
 
     try {
       const data = await postFuneralRequest(buildFuneralPayload(form));
-      console.log('[ROAST] Funeral payload received', {
-        requestId: data.requestId,
-        type: data.type || data.mode || 'unknown',
-        subjectName: data.subjectName,
-        scriptSpeakers: Array.isArray(data.script)
-          ? data.script.map((segment) => ({
-              id: segment.id,
-              speaker: segment.speaker,
-              label: segment.label,
-            }))
-          : [],
-        hasAgentConversation: Boolean(data.agentConversation),
-        liveAgent: data.liveAgent,
-      });
       // Add artificial delay to guarantee the user feels the weight of the conjuring
       setTimeout(() => {
         startTransition(() => {
@@ -245,6 +256,7 @@ export default function App() {
                 form={form}
                 onSubmit={handleSubmit}
                 onChange={updateField}
+                onEnableSound={resumeAmbientScore}
                 error={error}
                 loading={screen === 'conjuring'}
               />
@@ -265,6 +277,7 @@ export default function App() {
             >
               <FuneralStage
                 ambientReady={ambientReady}
+                resumeAmbientScore={resumeAmbientScore}
                 experience={experience}
                 onAmbientModeChange={setFuneralAmbientMode}
                 onReturnHome={handleReturnHome}
