@@ -12,8 +12,27 @@ const VOICE_CACHE_TTL_MS = 5 * 60 * 1000;
 const MIN_SOURCE_TEXT_LENGTH = 140;
 const MIN_RICH_SOURCE_TEXT_LENGTH = 700;
 const MIN_TOTAL_SOURCE_TEXT_LENGTH = 900;
+const MIN_USER_EVIDENCE_TEXT_LENGTH = 140;
 const MAX_SELECTED_SOURCES = 6;
 const SEARCH_LIMIT = 4;
+const SEARCH_TIMEOUT_MS = 12000;
+const USER_EVIDENCE_FIELDS = [
+  {
+    key: 'bioText',
+    label: 'Pasted bio or headline',
+    kind: 'bio',
+  },
+  {
+    key: 'postText',
+    label: 'Pasted post or thread',
+    kind: 'post',
+  },
+  {
+    key: 'extraReceiptText',
+    label: 'Pasted extra receipt',
+    kind: 'receipt',
+  },
+];
 
 let voiceCache = {
   expiresAt: 0,
@@ -45,6 +64,17 @@ function redactInput(value = '') {
   return `${trimmed.slice(0, 10)}...${trimmed.slice(-4)}`;
 }
 
+function formatPlatformLabel(platform = '') {
+  return {
+    x: 'X',
+    linkedin: 'LinkedIn',
+    instagram: 'Instagram',
+    github: 'GitHub',
+    web: 'Web',
+    user: 'User Receipt',
+  }[platform] || 'Public Source';
+}
+
 function sleep(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
@@ -60,10 +90,50 @@ function normalizeHandle(value = '') {
     .trim()
     .replace(/^@/, '')
     .replace(/^https?:\/\/(www\.)?x\.com\//i, '')
+    .replace(/^https?:\/\/(www\.)?twitter\.com\//i, '')
     .replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, '')
     .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
     .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
     .replace(/\/+$/, '');
+}
+
+function parseXReference(value = '') {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (!isUrl(trimmed)) {
+    return {
+      handle: normalizeHandle(trimmed),
+      postId: '',
+    };
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const hostname = url.hostname.replace(/^www\./i, '').toLowerCase();
+
+    if (hostname !== 'x.com' && hostname !== 'twitter.com') {
+      return null;
+    }
+
+    const parts = url.pathname.split('/').filter(Boolean);
+    const handle = (parts[0] || '').replace(/^@/, '');
+    const markerIndex = parts.findIndex((part) =>
+      ['status', 'thread'].includes(part.toLowerCase()),
+    );
+    const postId =
+      markerIndex >= 0 ? (parts[markerIndex + 1] || '').trim() : '';
+
+    return {
+      handle,
+      postId,
+    };
+  } catch (_error) {
+    return null;
+  }
 }
 
 function inferPlatformFromInput(rawValue = '') {
@@ -147,6 +217,38 @@ function collectRequestedProfiles(input = {}) {
   });
 }
 
+function collectUserEvidence(input = {}) {
+  return USER_EVIDENCE_FIELDS.flatMap((field) => {
+    const text = trimText(input[field.key] || '', 2200);
+
+    if (!text) {
+      return [];
+    }
+
+    const id = `user-evidence:${field.key}`;
+
+    return [
+      {
+        id,
+        url: id,
+        platform: 'user',
+        title: field.label,
+        description: 'User-submitted receipt',
+        markdown: text,
+        text,
+        textLength: text.length,
+        domain: 'user-submitted',
+        score: 1200,
+        display: field.label,
+        discoveredBy: 'user-submitted',
+        sourceType: 'user_submitted_text',
+        sourceLabel: field.label,
+        kind: field.kind,
+      },
+    ];
+  });
+}
+
 function trimText(value, maxLength = 280) {
   if (!value) {
     return '';
@@ -224,17 +326,105 @@ function getPlatformDomain(platform) {
 }
 
 function buildSearchPlans(platform, rawValue) {
+  const trimmed = rawValue.trim();
   const normalized = normalizeHandle(rawValue);
   const quotedValue = normalized ? `"${normalized}"` : '';
   const plans = [];
   const primaryDomain = getPlatformDomain(platform);
+  const normalizedUrl = isUrl(trimmed) ? normalizeUrl(trimmed) : '';
+  const inputDomain = getDomain(trimmed);
 
-  if (isUrl(rawValue)) {
+  if (platform === 'x' && normalizedUrl) {
+    const parsedX = parseXReference(trimmed);
+    const canonicalStatusUrl =
+      parsedX?.handle && parsedX?.postId
+        ? `https://x.com/${parsedX.handle}/status/${parsedX.postId}`
+        : normalizedUrl;
+
     plans.push({
       label: 'exact-url',
-      query: normalizeUrl(rawValue),
-      preferredDomain: getDomain(rawValue),
+      query: normalizedUrl,
+      preferredDomain: inputDomain,
+      strictDomain: inputDomain,
+      strictUrl: normalizedUrl,
+      targetHandle: parsedX?.handle || '',
+      targetPostId: parsedX?.postId || '',
     });
+
+    if (parsedX?.handle && parsedX?.postId) {
+      plans.push({
+        label: 'x-thread',
+        query: `"${parsedX.handle}" "${parsedX.postId}" site:x.com`,
+        preferredDomain: 'x.com',
+        targetHandle: parsedX.handle,
+        targetPostId: parsedX.postId,
+        tbs: 'sbd:1',
+      });
+
+      plans.push({
+        label: 'x-post-id',
+        query: `"${parsedX.postId}" site:x.com`,
+        preferredDomain: 'x.com',
+        targetHandle: parsedX.handle,
+        targetPostId: parsedX.postId,
+        tbs: 'sbd:1',
+      });
+
+      plans.push({
+        label: 'x-thread-web',
+        query: `"${parsedX.handle}" "${parsedX.postId}"`,
+        preferredDomain: '',
+        requiredTokensAll: [parsedX.postId],
+        tbs: 'sbd:1',
+      });
+
+      plans.push({
+        label: 'x-canonical-web',
+        query: `"${canonicalStatusUrl}"`,
+        preferredDomain: '',
+        requiredTokensAll: [parsedX.postId],
+      });
+    }
+
+    if (parsedX?.handle) {
+      plans.push({
+        label: 'x-handle',
+        query: `"${parsedX.handle}" site:x.com`,
+        preferredDomain: 'x.com',
+        targetHandle: parsedX.handle,
+        tbs: 'sbd:1',
+      });
+    }
+
+    return plans.filter(
+      (plan, index, list) =>
+        plan.query &&
+        list.findIndex((candidate) => candidate.query === plan.query) === index,
+    );
+  }
+
+  if (normalizedUrl) {
+    plans.push({
+      label: 'exact-url',
+      query: normalizedUrl,
+      preferredDomain: inputDomain,
+      strictDomain: inputDomain,
+      strictUrl: normalizedUrl,
+    });
+
+    if (platform === 'web') {
+      plans.push({
+        label: 'github-footprint',
+        query: `"${normalizedUrl}" site:github.com`,
+        preferredDomain: 'github.com',
+      });
+    }
+
+    return plans.filter(
+      (plan, index, list) =>
+        plan.query &&
+        list.findIndex((candidate) => candidate.query === plan.query) === index,
+    );
   }
 
   if (quotedValue && primaryDomain) {
@@ -293,8 +483,36 @@ function buildSourceCandidate(result, plan, seed) {
   const text = getSourceText({ title, description, markdown });
   const domain = getDomain(url);
   const seedValue = seed.value.toLowerCase();
+  const candidateUrlLower = url.toLowerCase();
+  const contentHaystack = `${url} ${title} ${description} ${markdown}`.toLowerCase();
 
   let score = Math.min(text.length, 1200);
+
+  if (plan.strictDomain && domain !== plan.strictDomain) {
+    return null;
+  }
+
+  if (
+    Array.isArray(plan.requiredTokensAll) &&
+    !plan.requiredTokensAll.every((token) =>
+      contentHaystack.includes(`${token}`.toLowerCase()),
+    )
+  ) {
+    return null;
+  }
+
+  if (plan.strictUrl && !plan.targetPostId) {
+    try {
+      const strictPath = new URL(plan.strictUrl).pathname.replace(/\/+$/, '') || '/';
+      const candidatePath = new URL(url).pathname.replace(/\/+$/, '') || '/';
+
+      if (strictPath !== '/' && !candidatePath.startsWith(strictPath)) {
+        return null;
+      }
+    } catch (_error) {
+      // Ignore URL parsing errors here and fall back to the other guards.
+    }
+  }
 
   if (plan.preferredDomain && domain.endsWith(plan.preferredDomain)) {
     score += 220;
@@ -318,6 +536,32 @@ function buildSourceCandidate(result, plan, seed) {
 
   if (platform === 'github' || platform === 'web') {
     score += 40;
+  }
+
+  if (
+    plan.targetHandle &&
+    domain === 'x.com' &&
+    !candidateUrlLower.includes(`/${plan.targetHandle.toLowerCase()}`)
+  ) {
+    return null;
+  }
+
+  if (
+    plan.targetPostId &&
+    domain === 'x.com' &&
+    !candidateUrlLower.includes(plan.targetPostId.toLowerCase())
+  ) {
+    return null;
+  }
+
+  if (
+    seed.platform === 'x' &&
+    seed.requestedPostId &&
+    domain === 'x.com' &&
+    (candidateUrlLower.includes('/status/') || candidateUrlLower.includes('/thread/')) &&
+    !candidateUrlLower.includes(seed.requestedPostId.toLowerCase())
+  ) {
+    return null;
   }
 
   if (
@@ -354,6 +598,40 @@ function buildSourceContext(sources) {
         )}`,
     )
     .join('\n\n');
+}
+
+function buildUserEvidenceContext(userEvidence) {
+  return userEvidence
+    .map(
+      (evidence, index) =>
+        `Receipt ${index + 1}\nID: ${evidence.id}\nLabel: ${evidence.title}\nType: ${evidence.kind}\nText: ${trimText(
+          evidence.text,
+          900,
+        )}`,
+    )
+    .join('\n\n');
+}
+
+function buildExhibits(_dossier, _publicSources = [], userEvidence = [], built = null) {
+  const evidenceCards = userEvidence.map((evidence) => ({
+    id: evidence.id,
+    type: 'user_receipt',
+    platform: evidence.platform || 'user',
+    title: evidence.title,
+    sourceLabel: 'Pasted receipt',
+    quote: trimText(evidence.text, 150),
+  }));
+
+  const summaryCards = (built?.receipts || []).map((receipt) => ({
+    id: receipt.id,
+    type: 'summary_receipt',
+    platform: receipt.platform || 'web',
+    title: receipt.heading,
+    sourceLabel: receipt.platform || 'Receipt',
+    quote: trimText(receipt.detail, 140),
+  }));
+
+  return [...evidenceCards, ...summaryCards].slice(0, 3);
 }
 
 async function firecrawlRequest(path, body, init = {}) {
@@ -459,6 +737,7 @@ async function scrapeUrl(url) {
 
 async function gatherPublicSources(platform, rawValue, logger = () => {}) {
   const value = normalizeHandle(rawValue);
+  const parsedX = platform === 'x' ? parseXReference(rawValue) : null;
 
   if (!value && !isUrl(rawValue)) {
     return [];
@@ -468,7 +747,11 @@ async function gatherPublicSources(platform, rawValue, logger = () => {}) {
     platform,
     inputUrl: isUrl(rawValue) ? rawValue.trim() : '',
     primaryDomain: getPlatformDomain(platform) || getDomain(rawValue),
-    value: value || rawValue.trim(),
+    requestedPostId: parsedX?.postId || '',
+    value:
+      platform === 'x' && parsedX?.handle
+        ? parsedX.handle
+        : value || rawValue.trim(),
   };
   const plans = buildSearchPlans(platform, rawValue);
   const candidates = [];
@@ -512,7 +795,9 @@ async function gatherPublicSources(platform, rawValue, logger = () => {}) {
 
       const payload = await firecrawlRequest('/search', {
         query: plan.query,
-        limit: SEARCH_LIMIT,
+        limit: plan.limit || SEARCH_LIMIT,
+        timeout: plan.timeout || SEARCH_TIMEOUT_MS,
+        ...(plan.tbs ? { tbs: plan.tbs } : {}),
         scrapeOptions: {
           formats: ['markdown'],
           onlyMainContent: true,
@@ -565,7 +850,22 @@ async function gatherPublicSources(platform, rawValue, logger = () => {}) {
       .map((candidate) => [candidate.url, candidate]),
   ).values()];
 
-  const selectedSources = dedupedSources.slice(0, MAX_SELECTED_SOURCES);
+  const filteredSources =
+    platform === 'x' && seed.requestedPostId
+      ? dedupedSources.filter((source) => {
+          const haystack = `${source.url} ${source.title} ${source.description} ${source.markdown}`.toLowerCase();
+          return haystack.includes(seed.requestedPostId.toLowerCase());
+        })
+      : dedupedSources;
+
+  if (platform === 'x' && seed.requestedPostId && !filteredSources.length) {
+    logger('pipeline.x_thread_unresolved', {
+      handle: seed.value,
+      postId: seed.requestedPostId,
+    });
+  }
+
+  const selectedSources = filteredSources.slice(0, MAX_SELECTED_SOURCES);
   const totalTextLength = selectedSources.reduce(
     (sum, source) => sum + source.textLength,
     0,
@@ -590,28 +890,41 @@ async function gatherPublicSources(platform, rawValue, logger = () => {}) {
   }));
 }
 
-function ensureMinimumSourceData(sources) {
+function ensureMinimumSourceData(sources, userEvidence = []) {
   const totalTextLength = sources.reduce((sum, source) => sum + source.textLength, 0);
   const richSourceCount = sources.filter(
     (source) => source.textLength >= MIN_RICH_SOURCE_TEXT_LENGTH,
   ).length;
+  const userEvidenceTextLength = userEvidence.reduce(
+    (sum, evidence) => sum + evidence.textLength,
+    0,
+  );
 
-  if (!sources.length) {
+  if (!sources.length && !userEvidence.length) {
     throw new Error('ROAST could not find usable public text from that profile.');
   }
 
-  if (richSourceCount >= 1 || totalTextLength >= MIN_TOTAL_SOURCE_TEXT_LENGTH) {
+  if (!sources.length && userEvidenceTextLength >= MIN_USER_EVIDENCE_TEXT_LENGTH) {
+    return;
+  }
+
+  if (
+    richSourceCount >= 1 ||
+    totalTextLength >= MIN_TOTAL_SOURCE_TEXT_LENGTH ||
+    userEvidenceTextLength >= MIN_USER_EVIDENCE_TEXT_LENGTH
+  ) {
     return;
   }
 
   throw new Error(
-    'Need one more public link or a richer public page. ROAST found too little public text to make this good.',
+    'Need one more public link or a pasted receipt. ROAST found too little concrete text to make this good.',
   );
 }
 
-function buildFallbackDossier(sources, input = {}) {
+function buildFallbackDossier(sources, input = {}, userEvidence = []) {
   const combinedText = sources
     .flatMap((source) => [source.title, source.description, source.markdown])
+    .concat(userEvidence.map((evidence) => evidence.text))
     .join('\n')
     .replace(/\s+/g, ' ')
     .trim();
@@ -635,14 +948,21 @@ function buildFallbackDossier(sources, input = {}) {
       selfMythology:
         excerpt || 'Presented an online self that was polished, busy, and occasionally too revealing.',
     },
-    highSignalQuotes: sources
-      .filter((source) => source.description || source.markdown)
-      .slice(0, 3)
-      .map((source) => ({
-        quote: trimText(source.markdown || source.description || source.title, 180),
-        sourceUrl: source.url,
-        platform: source.platform,
+    highSignalQuotes: [
+      ...userEvidence.map((evidence) => ({
+        quote: trimText(evidence.text, 180),
+        sourceUrl: evidence.id,
+        platform: evidence.platform,
       })),
+      ...sources
+        .filter((source) => source.description || source.markdown)
+        .slice(0, 3)
+        .map((source) => ({
+          quote: trimText(source.markdown || source.description || source.title, 180),
+          sourceUrl: source.url,
+          platform: source.platform,
+        })),
+    ].slice(0, 4),
     recurringThemes: [
       excerpt || 'Publicly documented ambition with more clarity than emotional boundaries.',
     ],
@@ -741,22 +1061,35 @@ function getDossierSchema() {
   };
 }
 
-function buildDossierPrompt(sources, input = {}) {
+function buildDossierPrompt(sources, input = {}, userEvidence = []) {
+  const evidenceContext = userEvidence.length
+    ? `Here are the user-submitted receipts. Treat them as explicit evidence, especially when social platforms are blocked:\n\n${buildUserEvidenceContext(
+        userEvidence,
+      )}`
+    : 'No user-submitted receipts were provided.';
+
   return [
     'You are preparing a darkly funny but evidence-backed funeral roast for a consenting user about themselves.',
     'Use the provided source snippets and URLs as your source of truth.',
+    'User-submitted receipts are also valid source material.',
     'Stay specific, surprising, and grounded in what the source material actually says.',
     'Prefer direct short quotes when they are vivid.',
     `If the user supplied a display name, treat "${input.displayName || ''}" as a hint, not a fact unless supported.`,
     'Do not invent relationships, jobs, or biographical details.',
     'Keep every field roastable but fair, and avoid generic filler.',
+    evidenceContext,
     `Here are the public sources you already have:\n\n${buildSourceContext(sources)}`,
   ].join(' ');
 }
 
-async function extractDossierWithAgent(sources, input = {}, logger = () => {}) {
+async function extractDossierWithAgent(
+  sources,
+  input = {},
+  userEvidence = [],
+  logger = () => {},
+) {
   const startPayload = await firecrawlRequest('/agent', {
-    prompt: buildDossierPrompt(sources, input),
+    prompt: buildDossierPrompt(sources, input, userEvidence),
     urls: sources.map((source) => source.url),
     schema: getDossierSchema(),
     model: 'spark-1-mini',
@@ -810,10 +1143,15 @@ async function extractDossierWithAgent(sources, input = {}, logger = () => {}) {
   throw new Error('Firecrawl agent timed out.');
 }
 
-async function extractDossierWithExtract(sources, input = {}, logger = () => {}) {
+async function extractDossierWithExtract(
+  sources,
+  input = {},
+  userEvidence = [],
+  logger = () => {},
+) {
   const startPayload = await firecrawlRequest('/extract', {
     urls: sources.map((source) => source.url),
-    prompt: buildDossierPrompt(sources, input),
+    prompt: buildDossierPrompt(sources, input, userEvidence),
     schema: getDossierSchema(),
   });
 
@@ -1010,12 +1348,18 @@ export async function getAvailableVoices() {
 
 export async function generateFuneralExperience(input = {}, options = {}) {
   const logger = options.logger || createLogger(options.requestId);
+  const userEvidence = collectUserEvidence(input);
 
   logger('pipeline.started', {
     profileInput: redactInput(input.profileInput || ''),
+    userEvidenceCount: userEvidence.length,
     firecrawlConfigured: Boolean(process.env.FIRECRAWL_API_KEY),
     elevenConfigured: Boolean(process.env.ELEVENLABS_API_KEY),
   });
+
+  if (!input.consentConfirmed) {
+    throw new Error('Confirm consent before starting the service.');
+  }
 
   if (input.demoMode || !process.env.FIRECRAWL_API_KEY) {
     logger('pipeline.mode', {
@@ -1057,18 +1401,19 @@ export async function generateFuneralExperience(input = {}, options = {}) {
     sources.map((source) => [source.url, source]),
   ).values()];
 
-  if (!dedupedSources.length) {
+  if (!dedupedSources.length && !userEvidence.length) {
     logger('pipeline.failed', {
-      reason: 'no_sources',
+      reason: 'no_evidence',
     });
-    throw new Error('Add at least one public profile handle or URL.');
+    throw new Error('Add at least one public page or paste a few receipts.');
   }
 
   try {
-    ensureMinimumSourceData(dedupedSources);
+    ensureMinimumSourceData(dedupedSources, userEvidence);
   } catch (error) {
     logger('pipeline.source_gate_failed', {
       sourceCount: dedupedSources.length,
+      userEvidenceCount: userEvidence.length,
       totalTextLength: dedupedSources.reduce(
         (sum, source) => sum + source.textLength,
         0,
@@ -1080,21 +1425,35 @@ export async function generateFuneralExperience(input = {}, options = {}) {
 
   let dossier;
 
-  try {
-    dossier = await extractDossierWithAgent(dedupedSources, input, logger);
-  } catch (error) {
-    logger('firecrawl.agent.fallback', {
-      reason: error.message,
-    });
-
+  if (dedupedSources.length) {
     try {
-      dossier = await extractDossierWithExtract(dedupedSources, input, logger);
+      dossier = await extractDossierWithExtract(
+        dedupedSources,
+        input,
+        userEvidence,
+        logger,
+      );
     } catch (extractError) {
       logger('firecrawl.extract.fallback', {
         reason: extractError.message,
       });
-      dossier = buildFallbackDossier(dedupedSources, input);
+
+      try {
+        dossier = await extractDossierWithAgent(
+          dedupedSources,
+          input,
+          userEvidence,
+          logger,
+        );
+      } catch (agentError) {
+        logger('firecrawl.agent.fallback', {
+          reason: agentError.message,
+        });
+        dossier = buildFallbackDossier(dedupedSources, input, userEvidence);
+      }
     }
+  } else {
+    dossier = buildFallbackDossier([], input, userEvidence);
   }
 
   if (!dossier) {
@@ -1156,6 +1515,7 @@ export async function generateFuneralExperience(input = {}, options = {}) {
       url: source.url,
       display: source.display,
     })),
+    exhibits: buildExhibits(dossier, dedupedSources, userEvidence, built),
     receipts: built.receipts,
     script: built.script,
     dossier,

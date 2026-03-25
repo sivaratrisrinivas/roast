@@ -42,12 +42,14 @@ function pickQuote(quotes, preferredPlatforms = []) {
   return preferred || quotes[0];
 }
 
-function quoteText(quote, fallback) {
-  if (!quote?.quote) {
-    return fallback;
+function pickAlternateQuote(quotes, excludedQuote, fallbackQuote = null) {
+  if (!Array.isArray(quotes) || !quotes.length) {
+    return fallbackQuote;
   }
 
-  return quote.quote.replace(/\s+/g, ' ').trim();
+  const alternate = quotes.find((quote) => quote !== excludedQuote);
+
+  return alternate || fallbackQuote || quotes[0];
 }
 
 function cleanPhrase(value, fallback) {
@@ -58,23 +60,62 @@ function cleanPhrase(value, fallback) {
   return `${value}`.replace(/\s+/g, ' ').trim();
 }
 
-function trimSentence(value) {
+function trimSentence(value = '') {
   return value.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
 }
 
-function adaptForSecondPerson(value, fallback) {
-  const phrase = cleanPhrase(value, fallback);
-  return phrase.replace(/^was\b/i, 'were');
+function trimSnippet(value = '', maxLength = 160) {
+  const cleaned = `${value}`.replace(/\s+/g, ' ').trim();
+
+  if (cleaned.length <= maxLength) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(0, maxLength - 1).trim()}…`;
 }
 
-function adaptWorkStyleForSecondPerson(value, fallback) {
-  return cleanPhrase(value, fallback).replace(
-    /,\s+and occasionally\b/i,
-    ', but you occasionally',
+function cleanEvidenceText(value = '', fallback = '') {
+  const withoutUrls = `${value}`
+    .replace(/https?:\/\/\S+/gi, '')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/[|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return withoutUrls || fallback;
+}
+
+function quoteSnippet(quote, fallback, maxLength = 150) {
+  if (!quote?.quote) {
+    return fallback;
+  }
+
+  return trimSnippet(
+    cleanEvidenceText(quote.quote, fallback).replace(/^["']|["']$/g, ''),
+    maxLength,
   );
 }
 
-function buildSegment(speaker, id, text, citations = []) {
+function toSecondPerson(value, fallback) {
+  return trimSentence(cleanPhrase(value, fallback))
+    .replace(/^was\b/i, 'were')
+    .replace(/^is\b/i, 'are');
+}
+
+function toActionPhrase(value, fallback) {
+  return trimSentence(cleanPhrase(value, fallback))
+    .replace(/^turned\b/i, 'turn')
+    .replace(/^made\b/i, 'make')
+    .replace(/^announced\b/i, 'announce');
+}
+
+function toClause(value, fallback) {
+  return trimSentence(cleanPhrase(value, fallback))
+    .replace(/^that\s+/i, '')
+    .replace(/^(were|was|is|are)\s+/i, '');
+}
+
+function buildSegment(speaker, id, text, citations = [], exhibitId = null) {
   return {
     id,
     speaker: speaker.id,
@@ -84,6 +125,7 @@ function buildSegment(speaker, id, text, citations = []) {
     voiceId: speaker.voiceId,
     text,
     citations,
+    exhibitId,
   };
 }
 
@@ -100,6 +142,7 @@ function buildReceipts(dossier) {
 
   return [
     {
+      id: 'receipt-identity',
       platform: 'Identity',
       heading: cleanPhrase(dossier.subject?.profession, 'Online Persona'),
       detail: cleanPhrase(
@@ -108,6 +151,7 @@ function buildReceipts(dossier) {
       ),
     },
     {
+      id: 'receipt-pattern',
       platform: 'Pattern',
       heading: 'Recurring Bits',
       detail: cleanPhrase(
@@ -116,9 +160,10 @@ function buildReceipts(dossier) {
       ),
     },
     {
-      platform: 'Quote',
-      heading: 'The Line Everyone Remembers',
-      detail: quoteText(
+      id: 'receipt-quote',
+      platform: 'Keepsake',
+      heading: 'The line that stays',
+      detail: quoteSnippet(
         pickQuote(quotes, ['x', 'linkedin', 'instagram']),
         'Even the receipts are still loading.',
       ),
@@ -130,7 +175,11 @@ export function buildFuneralScript(dossier, options = {}) {
   const speakerCatalog = getSpeakerCatalog();
   const quotes = dossier.highSignalQuotes || [];
   const momQuote = pickQuote(quotes, ['linkedin', 'instagram', 'x']);
-  const friendQuote = pickQuote(quotes, ['instagram', 'x', 'linkedin']);
+  const friendQuote = pickAlternateQuote(
+    quotes,
+    momQuote,
+    pickQuote(quotes, ['instagram', 'x', 'linkedin']),
+  );
 
   const subjectName = cleanPhrase(
     dossier.subject?.probableName || options.displayName,
@@ -160,37 +209,58 @@ export function buildFuneralScript(dossier, options = {}) {
     pickFirst(dossier.workStyle, 'worked hard enough that concern often arrived dressed up as admiration'),
     'worked hard enough that concern often arrived dressed up as admiration',
   );
+  const momLine = quoteSnippet(
+    momQuote,
+    'I am doing my best.',
+  );
+  const friendLine = quoteSnippet(
+    friendQuote,
+    'Please do not post this.',
+  );
+  const receipts = buildReceipts(dossier);
+  const momExhibitId =
+    momQuote?.platform === 'user' && momQuote?.sourceUrl
+      ? momQuote.sourceUrl
+      : 'receipt-pattern';
+  const friendExhibitId =
+    friendQuote?.platform === 'user' && friendQuote?.sourceUrl
+      ? friendQuote.sourceUrl
+      : 'receipt-quote';
   const script = [
     buildSegment(
       speakerCatalog.mom,
       'mom-tribute',
-      `[softly] I knew you before any of this had an audience. Before the posts, there was just someone who ${tenderness}. What worried me was how often you ${adaptForSecondPerson(
+      `[softly] On paper, you looked sorted. Smart. Busy. Going somewhere. In real life, it was a lot more fragile than that. You ${toSecondPerson(
         absencePattern,
         'were easier to reach online than in real life',
-      )}. When I read "${quoteText(
-        momQuote,
-        'I am doing my best',
-      )}", it did not sound impressive. It sounded tired and real. You ${adaptWorkStyleForSecondPerson(
-        workStyle,
-        'could work hard under pressure, but you sometimes treated that like proof that everything was fine',
-      )}. That was the real story, not the performance.`,
+      )}. You worked like somebody who thought momentum could replace rest. Even your own words said it: "${momLine}" That is not swagger. That is a person holding the whole week together with one brave sentence. And under all the public competence, there was someone who ${toClause(
+        tenderness,
+        'was still soft in the places nobody could see',
+      )}. That is the one I came to mourn. Not the profile. Not the performance. The person.`,
       momQuote ? [momQuote] : [],
+      momExhibitId,
     ),
     buildSegment(
       speakerCatalog.best_friend,
       'best-friend-tribute',
-      `[dryly] Being your friend meant watching how you ${recurringTheme}. Online it could look polished, but real life was simpler: ${friendMaterial}. And for the record, "${quoteText(
-        friendQuote,
-        'please do not post this',
-      )}" was never going to work. You could sound like someone who ${redFlag}, but that was never the full picture.`,
+      `[dryly] Honestly, none of this shocked your friends. We watched you ${toActionPhrase(
+        recurringTheme,
+        'turn ordinary life into content',
+      )} like it was a coping mechanism with good lighting. We watched you turn pressure into a personality trait. Offline, it was simpler and much funnier: ${trimSentence(
+        friendMaterial,
+      )}. Then you left evidence for the prosecution like "${friendLine}" That is not a private thought. That is a group-chat gift. And yes, sometimes you came off like someone who ${toClause(
+        redFlag,
+        'was emotionally unavailable with excellent signal strength',
+      )}. But that was the trick. You were chaotic in a very watchable way, so people kept laughing right up until the bit became the whole character.`,
       friendQuote ? [friendQuote] : [],
+      friendExhibitId,
     ),
   ];
 
   return {
     subjectName,
-    summary: `${subjectName} now gets a two-voice funeral from Mom and Best Friend, with no officiant framing and no extra speakers.`,
-    receipts: buildReceipts(dossier),
+    summary: 'A short two-voice funeral from Mom and Best Friend.',
+    receipts,
     script,
   };
 }
@@ -213,27 +283,31 @@ export function buildFuneralAgentConversation(dossier, built) {
     'You are ROAST.',
     'You perform a short two-voice eulogy for a consenting user based on their public web footprint.',
     'You are not here to chat. You are here to perform.',
-    'When the conversation begins, wait for the user message "Run my funeral now." Then deliver the entire funeral service in one continuous performance.',
+    'When the conversation begins, wait for the user message "Run my funeral now." Then perform the funeral exactly as written.',
     'Never ask follow-up questions, never explain the setup, never mention tools, and never break character.',
     'Keep the exact order of speakers: Mom, Best Friend.',
     'Do not add any other speakers, introductions, transitions, or closing remarks.',
     'After the Best Friend segment, remain silent and wait for the client to close the session.',
     'Do not ask whether the user is still there, do not invite them to speak, and do not continue into open conversation.',
-    'Stay extremely close to the provided funeral script and preserve its structure.',
+    'Read the provided script almost verbatim. Do not paraphrase unless needed for pronunciation.',
+    'Do not restart, summarize, or repeat any line.',
     'Use plain colloquial English that anyone can understand.',
     'Prefer short clear sentences over poetic or dramatic wording.',
-    'Dark humor should be dry and earned, not broad or cartoonish.',
-    'Avoid generic AI grief language, avoid purple prose, and avoid repeating the subject name unless the script explicitly needs it.',
+    'Make it feel like a short story being told by two people who knew the subject well.',
+    'Dark humor should be dry, observational, and earned, not broad or cartoonish.',
+    'Let the rhythm feel like a tight stand-up bit told in conversation: quick pivots, self-owning details, clean punchy phrasing.',
+    'A light urban Indian-English cadence is welcome, but do not imitate any real comedian, actor, or public figure.',
+    'Avoid generic AI grief language, avoid purple prose, and never say the subject name out loud unless the exact script text includes it.',
     'Sound like people who actually knew the subject.',
     'Preserve the emotional delivery tags already written into the script.',
     'If multi-voice support is configured, use exact XML voice tags with these labels: <Mom>...</Mom> and <BestFriend>...</BestFriend>.',
     'Do not say the XML tags out loud. They are only for voice switching.',
     'If multi-voice support is not configured, perform the full service in the default voice while still making Mom and Best Friend feel distinct.',
-    `The funeral subject is ${built.subjectName}.`,
+    'Once the script is done, stop speaking.',
   ].join(' ');
 
   const context = [
-    `Funeral subject: ${built.subjectName}`,
+    'Funeral subject: use second person only.',
     `Summary: ${built.summary}`,
     'Receipts:',
     ...built.receipts.map(

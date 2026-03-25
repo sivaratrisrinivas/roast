@@ -1,60 +1,67 @@
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function FuneralForm({ value, loading, error, onSubmit, onChange }) {
-  const isReady = value.trim().length > 3 && !loading;
+export function FuneralForm({ form, loading, error, onSubmit, onChange, ambientReady }) {
+  const isReady = form.profileInput.trim().length > 3 && !loading;
 
   return (
     <div className="summon-wrapper">
-      <motion.h1 
-        className="cinematic-title"
-        initial={{ opacity: 0, y: 10, letterSpacing: '0.2em' }}
-        animate={{ opacity: 1, y: 0, letterSpacing: '0.05em' }}
-        transition={{ duration: 1.5, ease: 'easeOut' }}
+      <motion.div
+        className="summon-minimal"
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 1.1, ease: 'easeOut' }}
       >
-        ROAST
-      </motion.h1>
+        <h1 className="cinematic-title">ROAST</h1>
+        <p className="summon-tagline">
+          A short funeral for your public internet self.
+        </p>
+        <p className="micro-text">
+          {ambientReady ? 'Ambient score is on.' : 'Sound on. Music begins after your first tap.'}
+        </p>
 
-      <form className="summon-wrapper" onSubmit={onSubmit}>
-        <motion.div 
-          className="summon-input-wrapper"
-          initial={{ opacity: 0, width: '0%' }}
-          animate={{ opacity: 1, width: '100%' }}
-          transition={{ duration: 1.5, delay: 0.5, ease: 'easeInOut' }}
-        >
-          <input
-            className="summon-input"
-            type="text"
-            value={value}
-            placeholder="Summon using a public URL or handle..."
-            onChange={(e) => onChange(e.target.value)}
-            autoFocus
-            disabled={loading}
-          />
-        </motion.div>
-
-        <AnimatePresence>
-          {isReady && (
-            <motion.button
-              key="submit-btn"
-              className="summon-button"
-              type="submit"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
+        <form className="clean-form" onSubmit={onSubmit}>
+          <label className="field-stack">
+            <span className="field-label">Website or GitHub</span>
+            <input
+              className="summon-input"
+              type="text"
+              value={form.profileInput}
+              placeholder="https://your-site.com or https://github.com/you"
+              onChange={(event) => onChange('profileInput', event.target.value)}
+              autoFocus
               disabled={loading}
-            >
-              Summon the Funeral
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </form>
+              required
+            />
+          </label>
+
+          <div className="summon-actions">
+            <p className="micro-text">One public page is enough.</p>
+
+            <AnimatePresence>
+              {isReady && (
+                <motion.button
+                  key="submit-btn"
+                  className="summon-button"
+                  type="submit"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  disabled={loading}
+                >
+                  Prepare the Service
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
+        </form>
+      </motion.div>
 
       <AnimatePresence>
         {error && (
-          <motion.p 
+          <motion.p
             className="micro-text"
-            style={{ color: '#ff4d4d', marginTop: '1rem' }}
+            style={{ color: '#ff6b6b' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

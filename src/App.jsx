@@ -1,19 +1,27 @@
-import { startTransition, useEffect, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FuneralForm } from './components/FuneralForm.jsx';
 import { FuneralStage } from './components/FuneralStage.jsx';
+import { createAmbientScore } from './lib/ambient-score.js';
 import chapelBgSrc from './assets/dark_chapel_bg.png';
 
-const initialForm = { profileInput: '' };
+const initialForm = {
+  profileInput: '',
+};
 
 const whisperLines = [
-  'Pulling the public version of you off the internet...',
-  'Sifting through dead links and forgotten posts...',
-  'Extracting the digital receipts...',
-  'Drafting the final eulogy...',
-  'Summoning the mourners...',
-  'Dimming the lights...',
+  'Gathering the public record...',
+  'Reading the public page...',
+  'Writing the eulogy...',
+  'Lighting the room...',
 ];
+
+function buildFuneralPayload(form) {
+  return {
+    profileInput: form.profileInput.trim(),
+    consentConfirmed: true,
+  };
+}
 
 async function postFuneralRequest(payload) {
   const response = await fetch('/api/funeral', {
@@ -35,6 +43,8 @@ async function postFuneralRequest(payload) {
 }
 
 function ConjuringScreen({ lineIndex }) {
+  const progressIndex = lineIndex % whisperLines.length;
+
   return (
     <motion.div
       className="conjuring-wrapper"
@@ -43,18 +53,32 @@ function ConjuringScreen({ lineIndex }) {
       exit={{ opacity: 0, filter: 'blur(20px)' }}
       transition={{ duration: 1.5, ease: 'easeInOut' }}
     >
-      <AnimatePresence mode="wait">
-        <motion.p
-          key={lineIndex}
-          className="conjuring-log"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 1.2, ease: 'easeInOut' }}
-        >
-          {whisperLines[lineIndex % whisperLines.length]}
-        </motion.p>
-      </AnimatePresence>
+      <div className="conjuring-shell">
+        <div className="conjuring-mark" />
+        <p className="micro-text">Preparing the service</p>
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={lineIndex}
+            className="conjuring-log"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 1.2, ease: 'easeInOut' }}
+          >
+            {whisperLines[progressIndex]}
+          </motion.p>
+        </AnimatePresence>
+        <div className="conjuring-progress" aria-hidden="true">
+          {whisperLines.map((line, index) => (
+            <span
+              key={line}
+              className={`conjuring-progress-dot${
+                index <= progressIndex ? ' conjuring-progress-dot-active' : ''
+              }`}
+            />
+          ))}
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -65,6 +89,21 @@ export default function App() {
   const [screen, setScreen] = useState('summon'); // 'summon', 'conjuring', 'funeral'
   const [error, setError] = useState('');
   const [lineIndex, setLineIndex] = useState(0);
+  const [ambientReady, setAmbientReady] = useState(false);
+  const [funeralAmbientMode, setFuneralAmbientMode] = useState(null);
+  const ambientScoreRef = useRef(null);
+
+  const ambientMode = useMemo(() => {
+    if (screen === 'funeral' && funeralAmbientMode) {
+      return funeralAmbientMode;
+    }
+
+    if (screen === 'conjuring') {
+      return 'conjuring';
+    }
+
+    return 'landing';
+  }, [funeralAmbientMode, screen]);
 
   useEffect(() => {
     if (screen !== 'conjuring') return undefined;
@@ -76,17 +115,64 @@ export default function App() {
     return () => clearInterval(timer);
   }, [screen]);
 
+  useEffect(() => {
+    ambientScoreRef.current = createAmbientScore();
+
+    let cancelled = false;
+
+    async function attemptResume() {
+      if (!ambientScoreRef.current) {
+        return;
+      }
+
+      try {
+        await ambientScoreRef.current.resume();
+
+        if (!cancelled) {
+          setAmbientReady(true);
+          ambientScoreRef.current.setIntensity(ambientMode);
+        }
+      } catch (_error) {
+        // Browser autoplay rules may require a user gesture first.
+      }
+    }
+
+    function handleUserActivation() {
+      attemptResume();
+    }
+
+    attemptResume();
+    window.addEventListener('pointerdown', handleUserActivation, { passive: true });
+    window.addEventListener('keydown', handleUserActivation);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('pointerdown', handleUserActivation);
+      window.removeEventListener('keydown', handleUserActivation);
+      ambientScoreRef.current?.stop();
+      ambientScoreRef.current = null;
+      setAmbientReady(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ambientReady || !ambientScoreRef.current) {
+      return;
+    }
+
+    ambientScoreRef.current.setIntensity(ambientMode);
+  }, [ambientMode, ambientReady]);
+
   async function handleSubmit(event) {
     event.preventDefault();
     setScreen('conjuring');
     setError('');
     setExperience(null);
     setLineIndex(0);
+    setFuneralAmbientMode(null);
 
     try {
-      const data = await postFuneralRequest({
-        profileInput: form.profileInput.trim(),
-      });
+      const data = await postFuneralRequest(buildFuneralPayload(form));
       console.log('[ROAST] Funeral payload received', {
         requestId: data.requestId,
         type: data.type || data.mode || 'unknown',
@@ -114,8 +200,20 @@ export default function App() {
     }
   }
 
-  function updateField(value) {
-    setForm({ profileInput: value });
+  function updateField(field, value) {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function handleReturnHome() {
+    startTransition(() => {
+      setExperience(null);
+      setError('');
+      setFuneralAmbientMode(null);
+      setScreen('summon');
+    });
   }
 
   return (
@@ -129,6 +227,7 @@ export default function App() {
         transition={{ duration: 20, ease: 'linear', repeat: Infinity, repeatType: 'reverse' }}
       />
       <div className="ambient-dust" />
+      <div className="ambient-vignette" />
 
       <main className="content-layer">
         <AnimatePresence mode="wait">
@@ -142,7 +241,8 @@ export default function App() {
               style={{ width: '100%' }}
             >
               <FuneralForm
-                value={form.profileInput}
+                ambientReady={ambientReady}
+                form={form}
                 onSubmit={handleSubmit}
                 onChange={updateField}
                 error={error}
@@ -163,7 +263,12 @@ export default function App() {
               transition={{ duration: 2, ease: 'easeOut' }}
               style={{ width: '100%' }}
             >
-              <FuneralStage experience={experience} />
+              <FuneralStage
+                ambientReady={ambientReady}
+                experience={experience}
+                onAmbientModeChange={setFuneralAmbientMode}
+                onReturnHome={handleReturnHome}
+              />
             </motion.div>
           )}
         </AnimatePresence>
