@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   createLogger,
   getAvailableVoices,
+  getConversationTokenForAgent,
   generateFuneralExperience,
   getLiveAgentConfig,
   getSignedUrlForAgent,
@@ -84,6 +85,17 @@ export function createApp(options = {}) {
     } catch (error) {
       response.status(500).json({
         error: error.message || 'Failed to fetch ElevenLabs signed URL.',
+      });
+    }
+  });
+
+  app.get('/api/eleven/conversation-token', async (_request, response) => {
+    try {
+      const token = await getConversationTokenForAgent();
+      response.json({ token });
+    } catch (error) {
+      response.status(500).json({
+        error: error.message || 'Failed to fetch ElevenLabs conversation token.',
       });
     }
   });

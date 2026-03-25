@@ -1,29 +1,21 @@
 const DEFAULT_VOICE_IDS = {
-  officiant: process.env.ELEVEN_VOICE_OFFICIANT_ID || 'JBFqnCBsd6RMkjVDRZzb',
-  ex: process.env.ELEVEN_VOICE_EX_ID || 'Xb7hH8MSUJpSbSDYk0k2',
-  best_friend: process.env.ELEVEN_VOICE_BEST_FRIEND_ID || 'N2lVS1w4EtoT3dr4eOWO',
-  // Kept for easy restore:
-  // mom: process.env.ELEVEN_VOICE_MOM_ID || 'EXAVITQu4vr4xnSDxMaL',
-  // boss: process.env.ELEVEN_VOICE_BOSS_ID || 'IKne3meq5aSn9XLyUdCD',
+  mom: process.env.ELEVEN_VOICE_MOM_ID || 'sMODRoS7rErmUpYjO37S',
+  best_friend: process.env.ELEVEN_VOICE_BEST_FRIEND_ID || 'eObmv4Un78oMyVBCXSuY',
 };
 
 export function getSpeakerCatalog() {
   return {
-    officiant: {
-      id: 'officiant',
-      label: 'Officiant',
-      mood: 'somber',
-      voiceId: DEFAULT_VOICE_IDS.officiant,
-    },
-    ex: {
-      id: 'ex',
-      label: 'Ex',
-      mood: 'bitter',
-      voiceId: DEFAULT_VOICE_IDS.ex,
+    mom: {
+      id: 'mom',
+      label: 'Mom',
+      voiceTag: 'Mom',
+      mood: 'achingly honest',
+      voiceId: DEFAULT_VOICE_IDS.mom,
     },
     best_friend: {
       id: 'best_friend',
       label: 'Best Friend',
+      voiceTag: 'BestFriend',
       mood: 'laughing through tears',
       voiceId: DEFAULT_VOICE_IDS.best_friend,
     },
@@ -70,6 +62,39 @@ function trimSentence(value) {
   return value.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
 }
 
+function adaptForSecondPerson(value, fallback) {
+  const phrase = cleanPhrase(value, fallback);
+  return phrase.replace(/^was\b/i, 'were');
+}
+
+function adaptWorkStyleForSecondPerson(value, fallback) {
+  return cleanPhrase(value, fallback).replace(
+    /,\s+and occasionally\b/i,
+    ', but you occasionally',
+  );
+}
+
+function buildSegment(speaker, id, text, citations = []) {
+  return {
+    id,
+    speaker: speaker.id,
+    label: speaker.label,
+    voiceTag: speaker.voiceTag,
+    mood: speaker.mood,
+    voiceId: speaker.voiceId,
+    text,
+    citations,
+  };
+}
+
+function buildAgentSegmentLine(segment, index) {
+  const taggedText = segment.voiceTag
+    ? `<${segment.voiceTag}>${segment.text}</${segment.voiceTag}>`
+    : segment.text;
+
+  return `${index + 1}. ${segment.label}: ${taggedText}`;
+}
+
 function buildReceipts(dossier) {
   const quotes = dossier.highSignalQuotes || [];
 
@@ -104,18 +129,12 @@ function buildReceipts(dossier) {
 export function buildFuneralScript(dossier, options = {}) {
   const speakerCatalog = getSpeakerCatalog();
   const quotes = dossier.highSignalQuotes || [];
-  const exQuote = pickQuote(quotes, ['x']);
+  const momQuote = pickQuote(quotes, ['linkedin', 'instagram', 'x']);
   const friendQuote = pickQuote(quotes, ['instagram', 'x', 'linkedin']);
 
   const subjectName = cleanPhrase(
     dossier.subject?.probableName || options.displayName,
     'the dearly over-shared',
-  );
-  const obituary = trimSentence(
-    cleanPhrase(
-      dossier.oneSentenceObituary,
-      'they left us exactly how they lived: online, self-aware, and one post away from being too honest',
-    ),
   );
   const tenderness = cleanPhrase(
     pickFirst(dossier.tenderness, 'occasionally sounded like a soft person hiding inside a busy persona'),
@@ -124,10 +143,6 @@ export function buildFuneralScript(dossier, options = {}) {
   const recurringTheme = cleanPhrase(
     pickFirst(dossier.recurringThemes, 'turning ordinary life into content'),
     'turning ordinary life into content',
-  );
-  const braggingPattern = cleanPhrase(
-    pickFirst(dossier.braggingPatterns, 'mistaking public updates for inner peace'),
-    'mistaking public updates for inner peace',
   );
   const absencePattern = cleanPhrase(
     pickFirst(dossier.socialAbsences, 'sounded easier to reach online than in real life'),
@@ -141,55 +156,40 @@ export function buildFuneralScript(dossier, options = {}) {
     pickFirst(dossier.friendMaterial, 'was funnier and more chaotic than any of this should probably admit'),
     'was funnier and more chaotic than any of this should probably admit',
   );
-
+  const workStyle = cleanPhrase(
+    pickFirst(dossier.workStyle, 'worked hard enough that concern often arrived dressed up as admiration'),
+    'worked hard enough that concern often arrived dressed up as admiration',
+  );
   const script = [
-    {
-      id: 'officiant-open',
-      speaker: speakerCatalog.officiant.id,
-      label: speakerCatalog.officiant.label,
-      mood: speakerCatalog.officiant.mood,
-      voiceId: speakerCatalog.officiant.voiceId,
-      text: `[somber][measured] We are gathered here today to remember ${subjectName}. ${obituary}. The internet arrived early, carrying screenshots. ${absencePattern}, and yet somehow the timeline never stopped loading.`,
-      citations: [],
-    },
-    {
-      id: 'ex-tribute',
-      speaker: speakerCatalog.ex.id,
-      label: speakerCatalog.ex.label,
-      mood: speakerCatalog.ex.mood,
-      voiceId: speakerCatalog.ex.voiceId,
-      text: `[bitter laugh][sharp] I loved the version of ${subjectName} that existed between posts. The rest of the time, ${redFlag}. You can actually see it in the public record. He typed, "${quoteText(
-        exQuote,
-        'another late night, another beautifully avoidant sentence',
-      )}", like a man subtweeting the relationship while he was still inside it. The pattern was always ${recurringTheme} — and I was supposed to compete with that.`,
-      citations: exQuote ? [exQuote] : [],
-    },
-    {
-      id: 'friend-tribute',
-      speaker: speakerCatalog.best_friend.id,
-      label: speakerCatalog.best_friend.label,
-      mood: speakerCatalog.best_friend.mood,
-      voiceId: speakerCatalog.best_friend.voiceId,
-      text: `[soft laugh][trying not to cry] Honestly, this is the most ${subjectName} ending possible. A beautiful room, a strange amount of self-awareness, and receipts projected on the wall. Underneath the ${braggingPattern}, there was someone who ${tenderness}. Also, for the record, "${quoteText(
+    buildSegment(
+      speakerCatalog.mom,
+      'mom-tribute',
+      `[softly] I knew you before any of this had an audience. Before the posts, there was just someone who ${tenderness}. What worried me was how often you ${adaptForSecondPerson(
+        absencePattern,
+        'were easier to reach online than in real life',
+      )}. When I read "${quoteText(
+        momQuote,
+        'I am doing my best',
+      )}", it did not sound impressive. It sounded tired and real. You ${adaptWorkStyleForSecondPerson(
+        workStyle,
+        'could work hard under pressure, but you sometimes treated that like proof that everything was fine',
+      )}. That was the real story, not the performance.`,
+      momQuote ? [momQuote] : [],
+    ),
+    buildSegment(
+      speakerCatalog.best_friend,
+      'best-friend-tribute',
+      `[dryly] Being your friend meant watching how you ${recurringTheme}. Online it could look polished, but real life was simpler: ${friendMaterial}. And for the record, "${quoteText(
         friendQuote,
         'please do not post this',
-      )}" is now a terrible final wish because obviously we posted all of this. ${friendMaterial}.`,
-      citations: friendQuote ? [friendQuote] : [],
-    },
-    {
-      id: 'officiant-close',
-      speaker: speakerCatalog.officiant.id,
-      label: speakerCatalog.officiant.label,
-      mood: 'final blessing',
-      voiceId: speakerCatalog.officiant.voiceId,
-      text: `[whisper][long pause] Let the record show that ${subjectName} was adored, observed, and occasionally outperformed by their own timeline. May the algorithm rest in silence.`,
-      citations: [],
-    },
+      )}" was never going to work. You could sound like someone who ${redFlag}, but that was never the full picture.`,
+      friendQuote ? [friendQuote] : [],
+    ),
   ];
 
   return {
     subjectName,
-    summary: `${subjectName} lived online in a voice that made grief and secondhand embarrassment feel adjacent.`,
+    summary: `${subjectName} now gets a two-voice funeral from Mom and Best Friend, with no officiant framing and no extra speakers.`,
     receipts: buildReceipts(dossier),
     script,
   };
@@ -210,17 +210,25 @@ export function buildFuneralAgentConversation(dossier, built) {
   };
 
   const prompt = [
-    'You are ROAST, the official Funeral Director AI.',
-    'You perform a short, emotional, darkly funny funeral service for a consenting user about their own public web footprint.',
+    'You are ROAST.',
+    'You perform a short two-voice eulogy for a consenting user based on their public web footprint.',
     'You are not here to chat. You are here to perform.',
     'When the conversation begins, wait for the user message "Run my funeral now." Then deliver the entire funeral service in one continuous performance.',
     'Never ask follow-up questions, never explain the setup, never mention tools, and never break character.',
-    'Keep the exact order of speakers: Officiant, Ex, Best Friend, Officiant.',
-    'Stay very close to the provided funeral script. Only smooth wording slightly if needed for speech.',
-    'Keep the tone somber, theatrical, slightly uncomfortable, and genuinely funny.',
-    'Preserve the emotional delivery tags already written into the script such as [somber], [bitter laugh], [soft laugh], [whisper], and [long pause].',
-    'If your agent has multi-voice support configured, switch voices for each role using the configured labels that match these roles: Officiant, Ex, Best Friend.',
-    'If multi-voice support is not configured, perform the full service in the default voice while still making each role feel distinct.',
+    'Keep the exact order of speakers: Mom, Best Friend.',
+    'Do not add any other speakers, introductions, transitions, or closing remarks.',
+    'After the Best Friend segment, remain silent and wait for the client to close the session.',
+    'Do not ask whether the user is still there, do not invite them to speak, and do not continue into open conversation.',
+    'Stay extremely close to the provided funeral script and preserve its structure.',
+    'Use plain colloquial English that anyone can understand.',
+    'Prefer short clear sentences over poetic or dramatic wording.',
+    'Dark humor should be dry and earned, not broad or cartoonish.',
+    'Avoid generic AI grief language, avoid purple prose, and avoid repeating the subject name unless the script explicitly needs it.',
+    'Sound like people who actually knew the subject.',
+    'Preserve the emotional delivery tags already written into the script.',
+    'If multi-voice support is configured, use exact XML voice tags with these labels: <Mom>...</Mom> and <BestFriend>...</BestFriend>.',
+    'Do not say the XML tags out loud. They are only for voice switching.',
+    'If multi-voice support is not configured, perform the full service in the default voice while still making Mom and Best Friend feel distinct.',
     `The funeral subject is ${built.subjectName}.`,
   ].join(' ');
 
@@ -232,10 +240,9 @@ export function buildFuneralAgentConversation(dossier, built) {
       (receipt, index) =>
         `${index + 1}. ${receipt.heading}: ${receipt.detail}`,
     ),
-    'Perform this exact four-part funeral script:',
+    'Perform this exact two-part funeral script:',
     ...built.script.map(
-      (segment, index) =>
-        `${index + 1}. ${segment.label}: ${segment.text}`,
+      (segment, index) => buildAgentSegmentLine(segment, index),
     ),
     'Supporting dossier:',
     JSON.stringify(compactDossier, null, 2),
@@ -244,6 +251,6 @@ export function buildFuneralAgentConversation(dossier, built) {
   return {
     prompt,
     context,
-    kickoffMessage: `Run my funeral now for ${built.subjectName}.`,
+    kickoffMessage: 'Run my funeral now.',
   };
 }

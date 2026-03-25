@@ -3,6 +3,7 @@ import {
   buildFuneralScript,
   getSpeakerCatalog,
 } from './funeral-script.mjs';
+import { getLiveAgentConfig } from './live-agent-config.mjs';
 import { buildMockExperience } from './mock-data.mjs';
 
 const FIRECRAWL_API_BASE = 'https://api.firecrawl.dev/v2';
@@ -353,19 +354,6 @@ function buildSourceContext(sources) {
         )}`,
     )
     .join('\n\n');
-}
-
-function getLiveAgentConfig() {
-  const configured = Boolean(process.env.ELEVENLABS_AGENT_ID);
-  const requiresAuth = process.env.ELEVENLABS_AGENT_REQUIRES_AUTH !== 'false';
-
-  return {
-    configured,
-    requiresAuth,
-    agentId: configured && !requiresAuth ? process.env.ELEVENLABS_AGENT_ID : null,
-    officiantVoiceId:
-      process.env.ELEVEN_VOICE_OFFICIANT_ID || 'JBFqnCBsd6RMkjVDRZzb',
-  };
 }
 
 async function firecrawlRequest(path, body, init = {}) {
@@ -908,7 +896,7 @@ async function generateDialogueAudio(script) {
         dialogueInputIndex: segment.dialogue_input_index,
         startTimeSeconds: segment.start_time_seconds,
         endTimeSeconds: segment.end_time_seconds,
-        speaker: sourceSegment?.speaker || 'officiant',
+        speaker: sourceSegment?.speaker || 'mom',
         label: sourceSegment?.label || 'Speaker',
       };
     }),
@@ -957,7 +945,7 @@ async function validateVoiceAssignments(script, logger = () => {}) {
   return availableVoices;
 }
 
-export async function getSignedUrlForAgent() {
+function getRequiredAgentCredentials() {
   const agentId = process.env.ELEVENLABS_AGENT_ID;
 
   if (!agentId) {
@@ -965,14 +953,23 @@ export async function getSignedUrlForAgent() {
   }
 
   if (!process.env.ELEVENLABS_API_KEY) {
-    throw new Error('ELEVENLABS_API_KEY is required to mint a signed URL.');
+    throw new Error('ELEVENLABS_API_KEY is required for authenticated agent sessions.');
   }
+
+  return {
+    agentId,
+    apiKey: process.env.ELEVENLABS_API_KEY,
+  };
+}
+
+export async function getSignedUrlForAgent() {
+  const { agentId, apiKey } = getRequiredAgentCredentials();
 
   const response = await fetch(
     `${ELEVENLABS_API_BASE}/convai/conversation/get-signed-url?agent_id=${agentId}`,
     {
       headers: {
-        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+        'xi-api-key': apiKey,
       },
     },
   );
@@ -984,6 +981,27 @@ export async function getSignedUrlForAgent() {
   }
 
   return payload.signed_url;
+}
+
+export async function getConversationTokenForAgent() {
+  const { agentId, apiKey } = getRequiredAgentCredentials();
+
+  const response = await fetch(
+    `${ELEVENLABS_API_BASE}/convai/conversation/token?agent_id=${agentId}`,
+    {
+      headers: {
+        'xi-api-key': apiKey,
+      },
+    },
+  );
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok || !payload.token) {
+    throw new Error(payload.detail?.message || 'Failed to fetch ElevenLabs conversation token.');
+  }
+
+  return payload.token;
 }
 
 export async function getAvailableVoices() {
@@ -1099,6 +1117,13 @@ export async function generateFuneralExperience(input = {}, options = {}) {
   logger('pipeline.script_built', {
     subjectName: built.subjectName,
     scriptSegments: built.script.length,
+    speakers: built.script.map((segment, index) => ({
+      index,
+      id: segment.id,
+      speaker: segment.speaker,
+      label: segment.label,
+      voiceId: segment.voiceId,
+    })),
   });
 
   let audio = null;

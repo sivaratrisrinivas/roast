@@ -1,4 +1,5 @@
 import { buildFuneralScript } from './funeral-script.mjs';
+import { getLiveAgentConfig } from './live-agent-config.mjs';
 
 function cleanHandle(value, fallback) {
   if (!value) {
@@ -101,15 +102,6 @@ export function buildMockExperience(input = {}) {
     script: built.script,
     dossier,
     audio: null,
-    liveAgent: {
-      configured: Boolean(process.env.ELEVENLABS_AGENT_ID),
-      requiresAuth: process.env.ELEVENLABS_AGENT_REQUIRES_AUTH !== 'false',
-      agentId:
-        process.env.ELEVENLABS_AGENT_REQUIRES_AUTH !== 'false'
-          ? null
-          : process.env.ELEVENLABS_AGENT_ID || null,
-      officiantVoiceId:
-        process.env.ELEVEN_VOICE_OFFICIANT_ID || 'JBFqnCBsd6RMkjVDRZzb',
-    },
+    liveAgent: getLiveAgentConfig(),
   };
 }
