@@ -4,8 +4,6 @@ ROAST turns one public page into a short live AI funeral.
 
 You paste a personal website or GitHub profile. ROAST gathers public signal, writes a two-person eulogy, and stages it in the browser with portraits, live voice, on-screen receipts, and a low ambient score.
 
-Trailer video is optional. If a user wants the two short teaser videos, they can add their own Gemini API key on the home screen and ROAST will use that key for video generation.
-
 The product is intentionally narrow:
 
 - one input
@@ -132,7 +130,6 @@ Because browsers often block autoplay audio, the score is designed to begin as s
 - receipt display
 - return-home flow
 - score ducking while voices are speaking
-- optional trailer pre-render when the user supplied a Gemini key
 
 ## Source Collection
 
@@ -219,16 +216,6 @@ Accepts:
 
 Returns a staged `experience` payload for the frontend.
 
-### `POST /api/trailer`
-
-Accepts the current eulogy script and a user-supplied `geminiApiKey`.
-
-Important:
-
-- trailer generation is opt-in
-- the server does not fall back to its own Gemini key for trailer video
-- the provided key is used only for that in-memory trailer job and its proxied downloads
-
 ## Running Locally
 
 Install dependencies and run:
@@ -244,9 +231,6 @@ Helpful env vars:
 - `ELEVENLABS_AGENT_ID`
 - `ELEVEN_VOICE_MOM_ID`
 - `ELEVEN_VOICE_BEST_FRIEND_ID`
-- `GEMINI_VEO_MODEL`
-
-You do not need to set `GEMINI_API_KEY` on the server for the current trailer flow if users bring their own key.
 
 ## Design Intent
 
