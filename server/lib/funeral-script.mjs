@@ -115,6 +115,272 @@ function toClause(value, fallback) {
     .replace(/^(were|was|is|are)\s+/i, '');
 }
 
+function createSignalText(...groups) {
+  return groups
+    .flatMap((group) => (Array.isArray(group) ? group : [group]))
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function countMatches(haystack, patterns = []) {
+  return patterns.reduce((score, pattern) => {
+    return score + (haystack.includes(pattern) ? 1 : 0);
+  }, 0);
+}
+
+function hashSkeletonSeed(value = '') {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 33 + value.charCodeAt(index)) % 2147483647;
+  }
+
+  return hash;
+}
+
+function pickSkeletonVariant(dossier, subjectName, recurringTheme, friendLine) {
+  const signalText = createSignalText(
+    dossier.recurringThemes,
+    dossier.braggingPatterns,
+    dossier.tenderness,
+    dossier.socialAbsences,
+    dossier.relationshipRedFlags,
+    dossier.workStyle,
+    dossier.friendMaterial,
+    dossier.oneSentenceObituary,
+  );
+  const workSignals = createSignalText(
+    dossier.workStyle,
+    dossier.tenderness,
+    dossier.oneSentenceObituary,
+  );
+  const builderSignals = createSignalText(
+    dossier.recurringThemes,
+    dossier.braggingPatterns,
+    dossier.friendMaterial,
+  );
+  const absenceSignals = createSignalText(
+    dossier.socialAbsences,
+    dossier.relationshipRedFlags,
+    dossier.tenderness,
+  );
+  const performanceSignals = createSignalText(
+    dossier.recurringThemes,
+    dossier.braggingPatterns,
+    dossier.friendMaterial,
+    (dossier.highSignalQuotes || []).map((quote) => quote.quote),
+  );
+
+  const scores = {
+    overworked_golden_child: countMatches(workSignals, [
+        'work',
+        'pressure',
+        'rest',
+        'busy',
+        'admiration',
+        'recoverability',
+        'tired',
+      ]) +
+      countMatches(workSignals, ['soft', 'human']) +
+      1,
+    chaotic_builder: countMatches(builderSignals, [
+        'build',
+        'ship',
+        'launch',
+      'velocity',
+        'momentum',
+        'demo',
+        'chaos',
+        'workflow',
+    ]),
+    double_life: countMatches(absenceSignals, [
+      'online',
+      'offline',
+      'reach',
+      'text',
+      'unavailable',
+      'avoidance',
+      'signal',
+      'hours',
+    ]),
+    main_character_performer: countMatches(performanceSignals, [
+      'content',
+      'timeline',
+      'personality',
+      'watchable',
+      'quote',
+      'performance',
+      'brand',
+      'public',
+      'lore',
+    ]),
+  };
+
+  const ranked = Object.entries(scores).sort((left, right) => right[1] - left[1]);
+  const topScore = ranked[0]?.[1] || 0;
+
+  if (topScore > 0 && ranked[0][1] !== ranked[1]?.[1]) {
+    return ranked[0][0];
+  }
+
+  const variants = [
+    'overworked_golden_child',
+    'chaotic_builder',
+    'double_life',
+    'main_character_performer',
+  ];
+  const seed = hashSkeletonSeed(
+    `${subjectName}|${recurringTheme}|${friendLine}|${signalText}`,
+  );
+
+  return variants[Math.abs(seed) % variants.length];
+}
+
+function buildSkeletonScript(variant, context) {
+  const {
+    speakerCatalog,
+    momQuote,
+    friendQuote,
+    momExhibitId,
+    friendExhibitId,
+    tenderness,
+    recurringTheme,
+    absencePattern,
+    redFlag,
+    friendMaterial,
+    workStyle,
+    momLine,
+    friendLine,
+  } = context;
+
+  const skeletons = {
+    overworked_golden_child: [
+      buildSegment(
+        speakerCatalog.mom,
+        'mom-tribute',
+        `[softly] On paper, you looked sorted. Smart. Busy. Going somewhere. In real life, it was a lot more fragile than that. You ${toSecondPerson(
+          absencePattern,
+          'were easier to reach online than in real life',
+        )}. You worked like somebody who thought momentum could replace rest. Even your own words said it: "${momLine}" That is not swagger. That is a person holding the whole week together with one brave sentence. And under all the public competence, there was someone who ${toClause(
+          tenderness,
+          'was still soft in the places nobody could see',
+        )}. That is the one I came to mourn. Not the profile. Not the performance. The person.`,
+        momQuote ? [momQuote] : [],
+        momExhibitId,
+      ),
+      buildSegment(
+        speakerCatalog.best_friend,
+        'best-friend-tribute',
+        `[dryly] Honestly, none of this shocked your friends. We watched you ${toActionPhrase(
+          recurringTheme,
+          'turn ordinary life into content',
+        )} like it was a coping mechanism with good lighting. We watched you turn pressure into a personality trait. Offline, it was simpler and much funnier: ${trimSentence(
+          friendMaterial,
+        )}. Then you left evidence for the prosecution like "${friendLine}" That is not a private thought. That is a group-chat gift. And yes, sometimes you came off like someone who ${toClause(
+          redFlag,
+          'was emotionally unavailable with excellent signal strength',
+        )}. But that was the trick. You were chaotic in a very watchable way, so people kept laughing right up until the bit became the whole character.`,
+        friendQuote ? [friendQuote] : [],
+        friendExhibitId,
+      ),
+    ],
+    chaotic_builder: [
+      buildSegment(
+        speakerCatalog.mom,
+        'mom-tribute',
+        `[softly] You did not know how to do anything halfway. Every small idea had to become a launch. Every rough week had to become momentum. You ${toSecondPerson(
+          workStyle,
+          'worked hard enough that worry started sounding like praise',
+        )}. You ${toSecondPerson(
+          absencePattern,
+          'were easier to find online than in real life',
+        )}. Even your own words said it: "${momLine}" That line tells me more than the profile ever did. It tells me the engine was still running long after the person was tired. Under the shipping and the performance, there was someone who ${toClause(
+          tenderness,
+          'was still soft in the places nobody could see',
+        )}. That is the one I came to mourn.`,
+        momQuote ? [momQuote] : [],
+        momExhibitId,
+      ),
+      buildSegment(
+        speakerCatalog.best_friend,
+        'best-friend-tribute',
+        `[dryly] Your friends knew the pattern. You would ${toActionPhrase(
+          recurringTheme,
+          'turn ordinary life into content',
+        )} and call it a workflow. You made chaos sound productive. Offline, the bit was even better: ${trimSentence(
+          friendMaterial,
+        )}. Then you left the kind of evidence no defence lawyer wants, like "${friendLine}" That is not a thought. That is a release note from a mildly unstable startup. The funny part is, it worked. People kept watching because you were charismatic enough to make exhaustion look like a feature.`,
+        friendQuote ? [friendQuote] : [],
+        friendExhibitId,
+      ),
+    ],
+    double_life: [
+      buildSegment(
+        speakerCatalog.mom,
+        'mom-tribute',
+        `[softly] The public version of you looked composed. Capable. Maybe even sorted. But the private truth kept leaking through. You ${toSecondPerson(
+          absencePattern,
+          'were easier to reach online than in real life',
+        )}. You ${toSecondPerson(
+          redFlag,
+          'were emotionally unavailable with very good signal strength',
+        )}. And then there was that one honest line: "${momLine}" I held on to that because it sounded like the real person tapping on the glass. Under the polished internet self, there was someone who ${toClause(
+          tenderness,
+          'was still soft in the places nobody could see',
+        )}. That is who I came to say goodbye to.`,
+        momQuote ? [momQuote] : [],
+        momExhibitId,
+      ),
+      buildSegment(
+        speakerCatalog.best_friend,
+        'best-friend-tribute',
+        `[dryly] The funniest thing about you was the split screen. Online, very composed. Offline, a small administrative disaster. You could ${toActionPhrase(
+          recurringTheme,
+          'turn ordinary life into content',
+        )} and still somehow miss three texts in a row. That is talent. Your own archive kept snitching, especially "${friendLine}" That is the kind of sentence that explains a whole phase of somebody's life. And yes, sometimes you came off like someone who ${toClause(
+          redFlag,
+          'was emotionally unavailable with excellent signal strength',
+        )}. But the friends knew the trick: the chaos was real, the charm was also real, and the two were always working overtime.`,
+        friendQuote ? [friendQuote] : [],
+        friendExhibitId,
+      ),
+    ],
+    main_character_performer: [
+      buildSegment(
+        speakerCatalog.mom,
+        'mom-tribute',
+        `[softly] You had a way of making even an ordinary week sound like a season finale. The internet liked that version of you. It was neat. Watchable. But I could hear the strain underneath. You ${toSecondPerson(
+          workStyle,
+          'worked hard enough that concern often arrived dressed up as admiration',
+        )}. You ${toSecondPerson(
+          absencePattern,
+          'were easier to reach online than in real life',
+        )}. Then came a line like "${momLine}" and suddenly the whole performance cracked open. That is when the real person appeared. The one who ${toClause(
+          tenderness,
+          'was still soft in the places nobody could see',
+        )}.`,
+        momQuote ? [momQuote] : [],
+        momExhibitId,
+      ),
+      buildSegment(
+        speakerCatalog.best_friend,
+        'best-friend-tribute',
+        `[dryly] To be fair, you were always going to become content eventually. You could ${toActionPhrase(
+          recurringTheme,
+          'turn ordinary life into content',
+        )} before most people had even processed the moment. Offline, though, the lore was stronger: ${trimSentence(
+          friendMaterial,
+        )}. Then you handed the case to the prosecution with "${friendLine}" That is not just oversharing. That is world-building. And that was the danger. The bit got so good that sometimes it started swallowing the person.`,
+        friendQuote ? [friendQuote] : [],
+        friendExhibitId,
+      ),
+    ],
+  };
+
+  return skeletons[variant] || skeletons.overworked_golden_child;
+}
+
 function buildSegment(speaker, id, text, citations = [], exhibitId = null) {
   return {
     id,
@@ -226,36 +492,27 @@ export function buildFuneralScript(dossier, options = {}) {
     friendQuote?.platform === 'user' && friendQuote?.sourceUrl
       ? friendQuote.sourceUrl
       : 'receipt-quote';
-  const script = [
-    buildSegment(
-      speakerCatalog.mom,
-      'mom-tribute',
-      `[softly] On paper, you looked sorted. Smart. Busy. Going somewhere. In real life, it was a lot more fragile than that. You ${toSecondPerson(
-        absencePattern,
-        'were easier to reach online than in real life',
-      )}. You worked like somebody who thought momentum could replace rest. Even your own words said it: "${momLine}" That is not swagger. That is a person holding the whole week together with one brave sentence. And under all the public competence, there was someone who ${toClause(
-        tenderness,
-        'was still soft in the places nobody could see',
-      )}. That is the one I came to mourn. Not the profile. Not the performance. The person.`,
-      momQuote ? [momQuote] : [],
-      momExhibitId,
-    ),
-    buildSegment(
-      speakerCatalog.best_friend,
-      'best-friend-tribute',
-      `[dryly] Honestly, none of this shocked your friends. We watched you ${toActionPhrase(
-        recurringTheme,
-        'turn ordinary life into content',
-      )} like it was a coping mechanism with good lighting. We watched you turn pressure into a personality trait. Offline, it was simpler and much funnier: ${trimSentence(
-        friendMaterial,
-      )}. Then you left evidence for the prosecution like "${friendLine}" That is not a private thought. That is a group-chat gift. And yes, sometimes you came off like someone who ${toClause(
-        redFlag,
-        'was emotionally unavailable with excellent signal strength',
-      )}. But that was the trick. You were chaotic in a very watchable way, so people kept laughing right up until the bit became the whole character.`,
-      friendQuote ? [friendQuote] : [],
-      friendExhibitId,
-    ),
-  ];
+  const variant = pickSkeletonVariant(
+    dossier,
+    subjectName,
+    recurringTheme,
+    friendLine,
+  );
+  const script = buildSkeletonScript(variant, {
+    speakerCatalog,
+    momQuote,
+    friendQuote,
+    momExhibitId,
+    friendExhibitId,
+    tenderness,
+    recurringTheme,
+    absencePattern,
+    redFlag,
+    friendMaterial,
+    workStyle,
+    momLine,
+    friendLine,
+  });
 
   return {
     subjectName,
