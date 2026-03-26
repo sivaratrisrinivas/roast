@@ -30,7 +30,7 @@ ROAST does four things:
 
 1. Accepts one public page as input.
 2. Searches and scrapes strong public sources around that page.
-3. Builds a small dossier and writes a fixed two-part funeral.
+3. Builds a small dossier and writes a profile-driven two-part funeral.
 4. Performs the funeral live in the browser with ElevenLabs.
 
 The API returns an `experience` object with:
@@ -50,6 +50,8 @@ The writing aims for:
 - self-owning details
 - no purple prose
 
+The shape is intentionally consistent, but the eulogy skeleton is not fixed anymore. ROAST now picks from multiple archetype-driven script structures based on the dossier it extracts, so an overworked builder, a polished-but-chaotic persona, and a main-character internet performer do not all sound like the same funeral.
+
 The current comedic lane is closer to sharp conversational stand-up than to poetic AI writing. It should feel like people who knew the subject, not like a generic narrator.
 
 ## High-Level Flow
@@ -61,6 +63,8 @@ The current comedic lane is closer to sharp conversational stand-up than to poet
 5. The dossier is converted into receipts plus a two-part script.
 6. The frontend opens a live ElevenLabs session.
 7. The stage performs the eulogy while the browser handles timing, portraits, text, and ambient score.
+
+The two speakers stay the same, but the script builder can now choose different funeral skeletons depending on the person being analyzed.
 
 ## Architecture
 
@@ -164,9 +168,19 @@ Current rules:
 - only `Mom` and `Best Friend`
 - plain colloquial English
 - dry and observational humor
+- one of several deterministic profile-driven skeletons
 - no extra speakers
 - no post-eulogy conversation
 - no name repetition unless the script explicitly includes it
+
+Current skeleton families include:
+
+- `overworked_golden_child`
+- `chaotic_builder`
+- `double_life`
+- `main_character_performer`
+
+The selector is deterministic, so the same dossier should land in the same archetype unless the underlying public evidence changes.
 
 ## Runtime Modes
 
